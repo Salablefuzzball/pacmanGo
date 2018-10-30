@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">pacmanGo</string>
+    <string name="mapbox_access_token">pk.eyJ1Ijoic2FsYWJsZWZ1enpiYWxsIiwiYSI6ImNqbnBreHlhMDBqc20zbHBmZDRpczhjODcifQ.EGllCYxY5Rwl7-yr9j0vnA</string>
+</resources>
