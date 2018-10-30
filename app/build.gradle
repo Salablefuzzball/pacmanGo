@@ -35,5 +35,6 @@ dependencies {
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
     implementation 'com.mapbox.mapboxsdk:mapbox-android-sdk:6.6.0'
     implementation 'com.android.support:multidex:1.0.3'
+    implementation 'com.mapbox.mapboxsdk:mapbox-android-navigation-ui:0.21.0'
 }
 
