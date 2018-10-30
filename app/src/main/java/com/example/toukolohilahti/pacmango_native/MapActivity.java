@@ -59,7 +59,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             LocationLayerPlugin locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
 
             // Set the plugin's camera mode
-            locationLayerPlugin.setCameraMode(CameraMode.TRACKING);
+            locationLayerPlugin.setCameraMode(CameraMode.TRACKING_COMPASS);
             getLifecycle().addObserver(locationLayerPlugin);
         } else {
             permissionsManager = new PermissionsManager(this);
