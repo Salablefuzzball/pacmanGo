@@ -8,8 +8,9 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 
-public class OverpassQuery extends AsyncTask<String, String, String> {
+public class OverpassQuery extends AsyncTask<ArrayList, String, String> {
 
     public OverpassQuery(){
         //set context variables if required
@@ -21,9 +22,8 @@ public class OverpassQuery extends AsyncTask<String, String, String> {
     }
 
     @Override
-    protected String doInBackground(String... params) {
-        String urlString = params[0]; // URL to call
-        String data = params[1]; //data to post
+    protected String doInBackground(ArrayList... params) {
+        String urlString = params[0].get(0).toString(); // URL to call
         OutputStream out = null;
 
         try {
