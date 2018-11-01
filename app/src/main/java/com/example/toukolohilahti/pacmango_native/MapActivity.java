@@ -3,9 +3,11 @@ package com.example.toukolohilahti.pacmango_native;
 import android.content.Context;
 import android.location.Location;
 import android.support.annotation.NonNull;
+import android.support.design.widget.FloatingActionButton;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Toast;
 
 import com.mapbox.android.core.location.LocationEngine;
@@ -15,11 +17,17 @@ import com.mapbox.android.core.location.LocationEngineProvider;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.camera.CameraPosition;
+import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.mapboxsdk.location.LocationComponentOptions;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
+import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerOptions;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
+import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
 import java.util.List;
 
@@ -40,16 +48,36 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         setContentView(R.layout.activity_map);
         mapView = findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
-        mapView.getMapAsync(new OnMapReadyCallback() {
-            @Override
-            public void onMapReady(MapboxMap mapboxMap) {
-                self.mapboxMap = mapboxMap;
-                enableLocationPlugin();
-            }
+        mapView.getMapAsync(mapboxMap -> {
+            self.mapboxMap = mapboxMap;
+            enableLocationPlugin();
+            setLocationButtonListener();
         });
     }
 
-    @SuppressWarnings( {"MissingPermission"})
+    private void setLocationButtonListener() {
+        FloatingActionButton myFab = (FloatingActionButton) this.findViewById(R.id.fab);
+        myFab.setOnClickListener(view -> animateCameraToMyLocation());
+    }
+
+    @SuppressWarnings({"MissingPermission"})
+    private void animateCameraToMyLocation() {
+        Location myLoc = locationEngine.getLastLocation();
+
+        if (myLoc != null) {
+            CameraPosition position = new CameraPosition.Builder()
+                    .target(new LatLng(myLoc.getLatitude(), myLoc.getLongitude())) // Sets the new camera position
+                    .zoom(17) // Sets the zoom
+                    .bearing(180) // Rotate the camera
+                    .tilt(30) // Set the camera tilt
+                    .build(); // Creates a CameraPosition from the builder
+
+            mapboxMap.animateCamera(CameraUpdateFactory
+                    .newCameraPosition(position), 1000);
+        }
+    }
+
+    @SuppressWarnings({"MissingPermission"})
     private void enableLocationPlugin() {
         // Check if permissions are enabled and if not request
         if (PermissionsManager.areLocationPermissionsGranted(this)) {
@@ -58,9 +86,13 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             // parameter
             LocationLayerPlugin locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
 
-            // Set the plugin's camera mode
-            locationLayerPlugin.setCameraMode(CameraMode.TRACKING_COMPASS);
+            // Set plugin settings
+            locationLayerPlugin.setRenderMode(RenderMode.GPS);
+            locationLayerPlugin.setCameraMode(CameraMode.TRACKING_GPS);
+            locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_icon).build());
+
             getLifecycle().addObserver(locationLayerPlugin);
+
         } else {
             permissionsManager = new PermissionsManager(this);
             permissionsManager.requestLocationPermissions(this);
@@ -81,6 +113,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             locationEngine.addLocationEngineListener(this);
         }
     }
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
