@@ -13,14 +13,44 @@ public class Overpass {
         public Position east;
         public Position south;
         public Position west;
+
+        Area(Position north, Position east, Position south, Position west) {
+            this.north = north;
+            this.east = east;
+            this.south = south;
+            this.west = west;
+        }
+
+        @Override
+        public String toString() {
+            return "Area{" +
+                    "north=" + north +
+                    ", east=" + east +
+                    ", south=" + south +
+                    ", west=" + west +
+                    '}';
+        }
     }
 
     public class Position {
         public double lat;
         public double lon;
+
+        Position(double lat, double lon) {
+            this.lat = lat;
+            this.lon = lon;
+        }
+
+        @Override
+        public String toString() {
+            return "Position{" +
+                    "lat=" + lat +
+                    ", lon=" + lon +
+                    '}';
+        }
     }
 
-    private Overpass() {
+    public Overpass() {
 
     }
 
@@ -28,15 +58,26 @@ public class Overpass {
         double lat = currentPosition.getLatitude();
         double lon = currentPosition.getLongitude();
 
-        double R = 6371;  // earth radius in km
-
         double radius = 2; // km
-        double x1 = lon - Math.toDegrees(radius/R/Math.cos(Math.toRadians(lat)));
-        double x2 = lon + Math.toDegrees(radius/R/Math.cos(Math.toRadians(lat)));
-        double y1 = lat + Math.toDegrees(radius/R);
-        double y2 = lat - Math.toDegrees(radius/R);
 
-        Area area = new Area();
+        double northLat = lat + radius/110.574;
+        double northLon = lon;
+        Position north = new Position(northLat, northLon);
+
+        double eastLat = lat;
+        double eastLon = lon + radius/111.320*Math.cos(lat);
+        Position east = new Position(eastLat, eastLon);
+
+        double southLat = lat - radius/110.574;
+        double southLon = lon;
+        Position south = new Position(southLat, southLon);
+
+        double westLat = lat;
+        double westLon = lon - radius/111.320*Math.cos(lat);
+        Position west = new Position(westLat, westLon);
+
+        Area area = new Area(north, east, south, west);
+        return area;
     }
 
     public void getRoads(Location currentPosition) {

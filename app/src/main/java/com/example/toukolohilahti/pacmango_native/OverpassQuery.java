@@ -24,6 +24,7 @@ public class OverpassQuery extends AsyncTask<ArrayList, String, String> {
     @Override
     protected String doInBackground(ArrayList... params) {
         String urlString = params[0].get(0).toString(); // URL to call
+        String data = "";
         OutputStream out = null;
 
         try {

@@ -45,7 +45,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             public void onMapReady(MapboxMap mapboxMap) {
                 self.mapboxMap = mapboxMap;
                 enableLocationPlugin();
-                Overpass.getRoads(originLocation);
+                Overpass pass = new Overpass();
+                pass.getRoads(originLocation);
             }
         });
     }
