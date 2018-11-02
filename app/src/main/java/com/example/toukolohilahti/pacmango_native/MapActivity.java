@@ -158,7 +158,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             initializeLocationEngine();
             // Create an instance of the plugin. Adding in LocationLayerOptions is also an optional
             // parameter
-            LocationLayerPlugin locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
+            locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
 
             // Set plugin settings
             locationLayerPlugin.setRenderMode(RenderMode.GPS);
@@ -178,13 +178,13 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         LocationEngineProvider locationEngineProvider = new LocationEngineProvider(this);
         locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
         locationEngine.setPriority(LocationEnginePriority.HIGH_ACCURACY);
+        locationEngine.addLocationEngineListener(this);
+        locationEngine.requestLocationUpdates();
         locationEngine.activate();
 
         Location lastLocation = locationEngine.getLastLocation();
         if (lastLocation != null) {
             originLocation = lastLocation;
-        } else {
-            locationEngine.addLocationEngineListener(this);
         }
     }
 
@@ -265,5 +265,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     @Override
     public void onLocationChanged(Location location) {
+       
     }
 }
