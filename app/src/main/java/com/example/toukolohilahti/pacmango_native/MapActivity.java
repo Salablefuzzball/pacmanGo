@@ -15,6 +15,8 @@ import com.mapbox.android.core.location.LocationEngineProvider;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.annotations.Icon;
+import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
@@ -59,6 +61,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                         pos.setLatitude(loc.lat);
                         pos.setLongitude(loc.lon);
                         options.setPosition(pos);
+                        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+                        Icon icon = iconFactory.fromResource(R.drawable.pellet);
+                        options.setIcon(icon);
                         mapboxMap.addMarker(options);
                     }
                 }

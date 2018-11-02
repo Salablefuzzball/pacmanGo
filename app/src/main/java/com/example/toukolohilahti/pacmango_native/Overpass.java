@@ -38,6 +38,18 @@ public class Overpass {
 
 
             this.geometry = this.convertToPositionArray(geometry);
+            this.geometry = this.fillRoads(this.geometry);
+        }
+
+        private ArrayList<Position> fillRoads(ArrayList<Position> positionArrayList) {
+            ArrayList<Position> temp = new ArrayList<>();
+            for(int index = 1; index < positionArrayList.size(); index++) {
+                if(this.distance(positionArrayList.get(index-1), positionArrayList.get(index)) > 30) {
+                    temp.add(this.calculateMidPoint(positionArrayList.get(index-1), positionArrayList.get(index)));
+                }
+            }
+            positionArrayList.addAll(temp);
+            return positionArrayList;
         }
 
         /**
@@ -60,6 +72,12 @@ public class Overpass {
             return posArray;
         }
 
+        /**
+         * Calcilate middle point between given two locations.
+         * @param pos1 First position.
+         * @param pos2 Second position.
+         * @return Calculated position in middle point of two given positions.
+         */
         private Position calculateMidPoint(Position pos1, Position pos2){
 
             double dLon = Math.toRadians(pos2.lon - pos1.lon);
@@ -74,7 +92,7 @@ public class Overpass {
             double lat3 = Math.atan2(Math.sin(lat1) + Math.sin(lat2), Math.sqrt((Math.cos(lat1) + Bx) * (Math.cos(lat1) + Bx) + By * By));
             double lon3 = lon1 + Math.atan2(By, Math.cos(lat1) + Bx);
 
-            return new Position(lat3, lon3);
+            return new Position(Math.toDegrees(lat3), Math.toDegrees(lon3));
         }
 
         /**
@@ -144,7 +162,7 @@ public class Overpass {
         double lat = currentPosition.getLatitude();
         double lon = currentPosition.getLongitude();
 
-        double radius = 2; // km
+        double radius = 0.3; // km
 
         double north = lat + radius/110.574;
         double east = lon + radius/111.320*Math.cos(lat);
