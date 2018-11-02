@@ -163,7 +163,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             // Set plugin settings
             locationLayerPlugin.setRenderMode(RenderMode.GPS);
             locationLayerPlugin.setCameraMode(CameraMode.TRACKING_GPS);
-            locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_icon).build());
+            locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_open_icon).build());
 
             getLifecycle().addObserver(locationLayerPlugin);
 
