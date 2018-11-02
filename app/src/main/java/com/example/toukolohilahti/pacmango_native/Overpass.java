@@ -82,6 +82,11 @@ public class Overpass {
 
     }
 
+    /**
+     * Calculates bounds for area starting from currentPosition.
+     * @param currentPosition Location object of current position.
+     * @return Area object containing bounds for the area.
+     */
     private Area calculateArea(Location currentPosition) {
         double lat = currentPosition.getLatitude();
         double lon = currentPosition.getLongitude();
@@ -97,6 +102,11 @@ public class Overpass {
         return area;
     }
 
+    /**
+     * Get roads from overpass api for certain area for given position.
+     * @param currentPosition Location object of current position.
+     * @return List of roads.
+     */
     public ArrayList<Road> getRoads(Location currentPosition) {
         Area area = calculateArea(currentPosition);
         String query = "<osm-script output='json' output-config='' timeout='60'> <union into='_'>"+
