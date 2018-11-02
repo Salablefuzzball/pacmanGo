@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Typeface;
 import android.location.Location;
 import android.support.annotation.NonNull;
-import android.support.design.widget.FloatingActionButton;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -23,14 +22,17 @@ import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
+import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
+import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerOptions;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener {
@@ -62,14 +64,37 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         mapView = findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
-        mapView.getMapAsync(mapboxMap -> {
-            self.mapboxMap = mapboxMap;
-            enableLocationPlugin();
 
-            //Consider using these, maybe more immersed gameplay?
-            //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
-            //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
+        mapView.getMapAsync(new OnMapReadyCallback() {
+            @Override
+            public void onMapReady(MapboxMap mapboxMap) {
+                self.mapboxMap = mapboxMap;
+                enableLocationPlugin();
+
+                //Consider using these, maybe more immersed gameplay?
+                //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
+                //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
+
+                createMarkers();
+            }
         });
+    }
+
+    private void createMarkers() {
+        Overpass pass = new Overpass();
+        ArrayList<Overpass.Road> roadList = pass.getRoads(originLocation);
+        for (int index = 0; index < roadList.size(); index++) {
+            Overpass.Road road = roadList.get(index);
+            for(int i = 0; i < road.geometry.size(); i++) {
+                Overpass.Position loc = road.geometry.get(i);
+                MarkerOptions options = new MarkerOptions();
+                LatLng pos = new LatLng();
+                pos.setLatitude(loc.lat);
+                pos.setLongitude(loc.lon);
+                options.setPosition(pos);
+                mapboxMap.addMarker(options);
+            }
+        }
     }
 
     private void setTitleTypeface() {
@@ -234,6 +259,5 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     @Override
     public void onLocationChanged(Location location) {
-
     }
 }
