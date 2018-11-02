@@ -15,12 +15,15 @@ import com.mapbox.android.core.location.LocationEngineProvider;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.annotations.MarkerOptions;
+import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener {
@@ -46,7 +49,19 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 self.mapboxMap = mapboxMap;
                 enableLocationPlugin();
                 Overpass pass = new Overpass();
-                pass.getRoads(originLocation);
+                ArrayList<Overpass.Road> roadList = pass.getRoads(originLocation);
+                for (int index = 0; index < roadList.size(); index++) {
+                    Overpass.Road road = roadList.get(index);
+                    for(int i = 0; i < road.geometry.size(); i++) {
+                        Overpass.Position loc = road.geometry.get(i);
+                        MarkerOptions options = new MarkerOptions();
+                        LatLng pos = new LatLng();
+                        pos.setLatitude(loc.lat);
+                        pos.setLongitude(loc.lon);
+                        options.setPosition(pos);
+                        mapboxMap.addMarker(options);
+                    }
+                }
             }
         });
     }
