@@ -1,6 +1,8 @@
-<resources>
-    <string name="app_name">pacmanGo</string>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" tools:ignore="PrivateResource">PacmanGo</string>
     <string name="mapbox_access_token">pk.eyJ1Ijoic2FsYWJsZWZ1enpiYWxsIiwiYSI6ImNqbnBreHlhMDBqc20zbHBmZDRpczhjODcifQ.EGllCYxY5Rwl7-yr9j0vnA</string>
     <string name="user_location_permission_explanation">This app needs location permissions in order to show its functionality.</string>
     <string name="user_location_permission_not_granted">You didn\'t grant location permissions.</string>
+    <string name="leaderboard">Leaderboards</string>
+    <string name="location">Location</string>
 </resources>

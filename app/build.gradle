@@ -24,6 +24,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    sourceSets { main { assets.srcDirs = ['src/main/assets', 'src/main/assets/'] } }
 }
 
 dependencies {
@@ -41,4 +42,3 @@ dependencies {
     implementation 'com.android.support:multidex:1.0.3'
     implementation 'com.mapbox.mapboxsdk:mapbox-android-navigation-ui:0.21.0'
 }
-
