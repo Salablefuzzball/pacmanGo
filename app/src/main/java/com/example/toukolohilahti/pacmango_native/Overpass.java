@@ -111,7 +111,7 @@ public class Overpass {
                 "</query></union><print e='' from='_' geometry='full' ids='yes' limit='' mode='ids_only' n='' order='id' s='' w=''/>"+
                 "<recurse from='_' into='_' type='down'/><print e='' from='_' geometry='skeleton' ids='yes' limit='' mode='skeleton' n='' order='quadtile' s='' w=''/></osm-script>";
 
-        OverpassQuery overpass = new OverpassQuery();
+        HttpPostQuery overpass = new HttpPostQuery();
         ArrayList<Road> roadList = new ArrayList<>();
         try {
             JSONObject response = overpass.execute(url, query).get();

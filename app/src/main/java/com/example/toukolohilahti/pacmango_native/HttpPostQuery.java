@@ -15,9 +15,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 
-public class OverpassQuery extends AsyncTask<String, String, JSONObject> {
+public class HttpPostQuery extends AsyncTask<String, String, JSONObject> {
 
-    public OverpassQuery(){
+    public HttpPostQuery(){
         //set context variables if required
     }
 
@@ -61,7 +61,6 @@ public class OverpassQuery extends AsyncTask<String, String, JSONObject> {
                 return null;
             }
         } catch (Exception e) {
-            System.out.println(e.getMessage());
             return null;
         }
     }
