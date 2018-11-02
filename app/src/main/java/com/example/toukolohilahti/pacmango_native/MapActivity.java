@@ -69,6 +69,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             @Override
             public void onMapReady(MapboxMap mapboxMap) {
                 self.mapboxMap = mapboxMap;
+                hideMapboxAttributes();
                 enableLocationPlugin();
 
                 //Consider using these, maybe more immersed gameplay?
@@ -78,6 +79,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 createMarkers();
             }
         });
+    }
+
+    private void hideMapboxAttributes() {
+        mapboxMap.getUiSettings().setAttributionEnabled(false);
+        mapboxMap.getUiSettings().setLogoEnabled(false);
     }
 
     private void createMarkers() {
