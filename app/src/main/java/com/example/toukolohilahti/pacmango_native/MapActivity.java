@@ -1,6 +1,8 @@
 package com.example.toukolohilahti.pacmango_native;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.location.Location;
 import android.support.annotation.NonNull;
@@ -8,14 +10,20 @@ import android.support.multidex.MultiDex;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
+import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.toukolohilahti.pacmango_native.Overpass.Overpass;
-import com.example.toukolohilahti.pacmango_native.Overpass.Position;
-import com.example.toukolohilahti.pacmango_native.Overpass.Road;
+import com.example.toukolohilahti.pacmango_native.overpass.Overpass;
+import com.example.toukolohilahti.pacmango_native.overpass.Position;
+import com.example.toukolohilahti.pacmango_native.overpass.Road;
+import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
+import com.github.davidmoten.rtree.Entry;
+import com.github.davidmoten.rtree.RTree;
+import com.github.davidmoten.rtree.geometry.Geometries;
+import com.github.davidmoten.rtree.geometry.Point;
 import com.mapbox.android.core.location.LocationEngine;
 import com.mapbox.android.core.location.LocationEngineListener;
 import com.mapbox.android.core.location.LocationEnginePriority;
@@ -25,6 +33,7 @@ import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
+import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
@@ -40,6 +49,8 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 import java.util.ArrayList;
 import java.util.List;
 
+import rx.Observable;
+
 public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener {
 
     private MapView mapView;
@@ -49,8 +60,13 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private LocationEngine locationEngine;
     private Location originLocation;
     private Toolbar mTopToolbar;
+    private SparseArray markers;
+    private RTree<String, Point> rTree;
 
+    //meters
+    private static final int MINIMUM_DISTANCE = 2;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +95,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 //Consider using these, maybe more immersed gameplay?
                 //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
                 //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
+                rTree = RTree.create();
+                markers = new SparseArray<MarkerOptions>();
                 createMarkers();
             }
         });
@@ -92,27 +110,51 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private void createMarkers() {
         Overpass pass = new Overpass();
         ArrayList<Road> roadList = pass.getRoads(originLocation);
-        for (int index = 0; index < roadList.size(); index++) {
-            Road road = roadList.get(index);
-            for(int i = 0; i < road.geometry.size(); i++) {
-                Position loc = road.geometry.get(i);
-                MarkerOptions options = new MarkerOptions();
-                LatLng pos = new LatLng();
-                pos.setLatitude(loc.lat);
-                pos.setLongitude(loc.lon);
-                options.setPosition(pos);
-                IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
-                Icon icon = iconFactory.fromResource(R.drawable.pellet);
-                options.setIcon(icon);
+
+        for (Road road: roadList) {
+            for (Position loc: road.geometry) {
+                MarkerOptions options = createMarkerOptions(loc);
                 mapboxMap.addMarker(options);
+                Point point = Geometries.point(loc.lat,loc.lon);
+                rTree = rTree.add("pac_dot", point);
+                markers.put(point.hashCode(), options);
             }
         }
+    }
+
+    private MarkerOptions createMarkerOptions(Position loc) {
+        MarkerOptions options = new MarkerOptions();
+        LatLng pos = new LatLng();
+        pos.setLatitude(loc.lat);
+        pos.setLongitude(loc.lon);
+        options.setPosition(pos);
+        Icon icon = getScaledIconFromResource();
+        options.setIcon(icon);
+
+        return options;
+    }
+
+
+
+    private Icon getScaledIconFromResource() {
+        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+        Bitmap b = BitmapFactory.decodeResource(MapActivity.this.getResources(), R.mipmap.pacdot);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 30, 30, false);
+
+        return iconFactory.fromBitmap(smallMarker);
     }
 
     private void setTitleTypeface() {
         TextView textView = findViewById(R.id.toolbar_title);
         Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
         textView.setTypeface(typeface);
+    }
+
+    private MarkerOptions findNearestMarker(Location loc) {
+        Observable entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
+        Entry point = (Entry) entries.toBlocking().first();
+
+        return (MarkerOptions) markers.get(point.geometry().hashCode());
     }
 
     @Override
@@ -169,7 +211,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             // Set plugin settings
             locationLayerPlugin.setRenderMode(RenderMode.GPS);
             locationLayerPlugin.setCameraMode(CameraMode.TRACKING_GPS);
-            locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_open_icon).build());
+            pacmanOpenMouth();
 
             getLifecycle().addObserver(locationLayerPlugin);
 
@@ -269,8 +311,51 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     }
 
+    private void animatePacman() {
+        pacmanCloseMouth();
+        new java.util.Timer().schedule(
+                new java.util.TimerTask() {
+                    @Override
+                    public void run() {
+                        pacmanOpenMouth();
+                    }
+                },
+                500
+        );
+    }
+
+    private void pacmanOpenMouth() {
+        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
+    }
+
+    private void pacmanCloseMouth() {
+        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
+    }
+
+    private Position locToPos(Location loc) {
+        return new Position(loc.getLatitude(), loc.getLongitude());
+    }
+
+    private Position latLngToPos(LatLng loc) {
+        return new Position(loc.getLatitude(), loc.getLongitude());
+    }
+
+    /**
+     * When user location is updated get the nearest marker
+     * and check if it is close enough to the user and then 'eat it'.
+     *
+     * @param location user Location.
+     */
     @Override
     public void onLocationChanged(Location location) {
-       
+       MarkerOptions options = findNearestMarker(location);
+       Marker marker = options.getMarker();
+       LatLng markerPos = marker.getPosition();
+       double distance = DistanceUtil.distance(locToPos(location), latLngToPos(markerPos));
+
+        if (distance < MINIMUM_DISTANCE) {
+           mapboxMap.removeMarker(marker);
+           animatePacman();
+       }
     }
 }

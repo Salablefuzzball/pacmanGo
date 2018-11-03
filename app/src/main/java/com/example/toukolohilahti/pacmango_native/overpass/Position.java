@@ -1,4 +1,4 @@
-package com.example.toukolohilahti.pacmango_native.Overpass;
+package com.example.toukolohilahti.pacmango_native.overpass;
 
 public class Position extends Overpass {
     public double lat;

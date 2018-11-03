@@ -1,4 +1,4 @@
-package com.example.toukolohilahti.pacmango_native.Overpass;
+package com.example.toukolohilahti.pacmango_native.overpass;
 
 import android.location.Location;
 
