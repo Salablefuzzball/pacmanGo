@@ -1,6 +1,8 @@
-package com.example.toukolohilahti.pacmango_native;
+package com.example.toukolohilahti.pacmango_native.Overpass;
 
 import android.location.Location;
+
+import com.example.toukolohilahti.pacmango_native.HttpPostQuery;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -13,71 +15,6 @@ public class Overpass {
 
     private static final String url = "https://overpass-api.de/api/interpreter";
 
-    public class Area {
-        public double north;
-        public double east;
-        public double south;
-        public double west;
-
-        Area(double north, double east, double south, double west) {
-            this.north = north;
-            this.east = east;
-            this.south = south;
-            this.west = west;
-        }
-    }
-
-    public class Road {
-        public String type;
-        public int id;
-        public ArrayList<Position> geometry;
-
-        public Road(String type, int id, JSONArray geometry) {
-            this.type = type;
-            this.id = id;
-
-            ArrayList<Position> posArray = new ArrayList<>();
-            for (int index = 0; index < geometry.length(); index++) {
-                JSONObject geometryObj = null;
-                try {
-                    geometryObj = geometry.getJSONObject(index);
-                    Position pos = new Position(geometryObj.getDouble("lat"), geometryObj.getDouble("lon"));
-                    posArray.add(pos);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-            this.geometry = posArray;
-        }
-
-        @Override
-        public String toString() {
-            return "Road{" +
-                    "type='" + type + '\'' +
-                    ", id=" + id +
-                    ", geometry=" + geometry +
-                    '}';
-        }
-    }
-
-    public class Position {
-        public double lat;
-        public double lon;
-
-        public Position(double lat, double lon) {
-            this.lat = lat;
-            this.lon = lon;
-        }
-
-        @Override
-        public String toString() {
-            return "Position{" +
-                    "lat=" + lat +
-                    ", lon=" + lon +
-                    '}';
-        }
-    }
-
     public Overpass() {
 
     }
@@ -88,15 +25,17 @@ public class Overpass {
      * @return Area object containing bounds for the area.
      */
     private Area calculateArea(Location currentPosition) {
-        double lat = currentPosition.getLatitude();
-        double lon = currentPosition.getLongitude();
+        final double LAT = currentPosition.getLatitude();
+        final double LON = currentPosition.getLongitude();
 
-        double radius = 2; // km
+        final double RADIUS = 2; // km
+        final double LAT_IN_KM = 110.574; // One latitude degree in km.
+        final double LON_IN_KM = 111.320; // One longitude degree in km.
 
-        double north = lat + radius/110.574;
-        double east = lon + radius/111.320*Math.cos(lat);
-        double south = lat - radius/110.574;
-        double west = lon - radius/111.320*Math.cos(lat);
+        double north = LAT + RADIUS/LAT_IN_KM;
+        double east = LON + RADIUS/LON_IN_KM*Math.cos(LAT);
+        double south = LAT - RADIUS/LAT_IN_KM;
+        double west = LON - RADIUS/LON_IN_KM*Math.cos(LAT);
 
         Area area = new Area(north, east, south, west);
         return area;
@@ -109,7 +48,7 @@ public class Overpass {
      */
     public ArrayList<Road> getRoads(Location currentPosition) {
         Area area = calculateArea(currentPosition);
-        String query = "<osm-script output='json' output-config='' timeout='60'> <union into='_'>"+
+        final String QUERY = "<osm-script output='json' output-config='' timeout='60'> <union into='_'>"+
                 "<query into='_' type='way'><has-kv k='highway' modv='' v='pedestrian'/>"+
                 "<bbox-query s='"+ area.south +"' w='"+ area.west +"' n='"+ area.north +"' e='"+ area.east +"'/>"+
                 "</query><query into='_' type='way'><has-kv k='highway' modv='' v='residential'/>"+
@@ -124,12 +63,14 @@ public class Overpass {
         HttpPostQuery overpass = new HttpPostQuery();
         ArrayList<Road> roadList = new ArrayList<>();
         try {
-            JSONObject response = overpass.execute(url, query).get();
+            JSONObject response = overpass.execute(url, QUERY).get();
             JSONArray roads = response.getJSONArray("elements");
             for (int index = 0; index < roads.length(); index++) {
                 JSONObject roadObj = roads.getJSONObject(index);
-                Road road = new Road(roadObj.getString("type"), roadObj.getInt("id"), roadObj.getJSONArray("geometry"));
-                roadList.add(road);
+                if (roadObj.getJSONArray("geometry").length() > 1) {
+                    Road road = new Road(roadObj.getString("type"), roadObj.getInt("id"), roadObj.getJSONArray("geometry"));
+                    roadList.add(road);
+                }
             }
 
         } catch (ExecutionException e) {

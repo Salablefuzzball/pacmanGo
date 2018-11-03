@@ -13,6 +13,9 @@ import android.view.MenuItem;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.toukolohilahti.pacmango_native.Overpass.Overpass;
+import com.example.toukolohilahti.pacmango_native.Overpass.Position;
+import com.example.toukolohilahti.pacmango_native.Overpass.Road;
 import com.mapbox.android.core.location.LocationEngine;
 import com.mapbox.android.core.location.LocationEngineListener;
 import com.mapbox.android.core.location.LocationEnginePriority;
@@ -20,6 +23,8 @@ import com.mapbox.android.core.location.LocationEngineProvider;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
+import com.mapbox.mapboxsdk.annotations.Icon;
+import com.mapbox.mapboxsdk.annotations.IconFactory;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
@@ -71,11 +76,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 self.mapboxMap = mapboxMap;
                 hideMapboxAttributes();
                 enableLocationPlugin();
-
                 //Consider using these, maybe more immersed gameplay?
                 //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
                 //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
-
                 createMarkers();
             }
         });
@@ -88,16 +91,19 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     private void createMarkers() {
         Overpass pass = new Overpass();
-        ArrayList<Overpass.Road> roadList = pass.getRoads(originLocation);
+        ArrayList<Road> roadList = pass.getRoads(originLocation);
         for (int index = 0; index < roadList.size(); index++) {
-            Overpass.Road road = roadList.get(index);
+            Road road = roadList.get(index);
             for(int i = 0; i < road.geometry.size(); i++) {
-                Overpass.Position loc = road.geometry.get(i);
+                Position loc = road.geometry.get(i);
                 MarkerOptions options = new MarkerOptions();
                 LatLng pos = new LatLng();
                 pos.setLatitude(loc.lat);
                 pos.setLongitude(loc.lon);
                 options.setPosition(pos);
+                IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+                Icon icon = iconFactory.fromResource(R.drawable.pellet);
+                options.setIcon(icon);
                 mapboxMap.addMarker(options);
             }
         }
