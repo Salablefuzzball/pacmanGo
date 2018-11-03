@@ -65,7 +65,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private RTree<String, Point> rTree;
 
     //meters
-    private static final int MINIMUM_DISTANCE = 2;
+    private static final int MINIMUM_DISTANCE = 5;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
 
 
@@ -349,8 +349,15 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         //But it is nice that it works.. clean later on.
         Entry point = (Entry) entries.toBlocking().firstOrDefault(null);
 
+        //If actually contains something then remove point from tree and map
+        //and return the found MarkerOptions
         if (point != null) {
-            return (MarkerOptions) markers.get(point.geometry().hashCode());
+            rTree.delete("pac_dot", (Point) point.geometry());
+            int key = point.geometry().hashCode();
+            MarkerOptions options = (MarkerOptions) markers.get(key);
+            markers.remove(key);
+            return options;
+
         }
 
         return null;
