@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.location.Location;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.AppCompatActivity;
@@ -148,13 +149,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         TextView textView = findViewById(R.id.toolbar_title);
         Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
         textView.setTypeface(typeface);
-    }
-
-    private MarkerOptions findNearestMarker(Location loc) {
-        Observable entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
-        Entry point = (Entry) entries.toBlocking().first();
-
-        return (MarkerOptions) markers.get(point.geometry().hashCode());
     }
 
     @Override
@@ -311,17 +305,18 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     }
 
+    /**
+     * Open and close pacmans mouth by changing the drawable.
+     */
     private void animatePacman() {
         pacmanCloseMouth();
-        new java.util.Timer().schedule(
-                new java.util.TimerTask() {
-                    @Override
-                    public void run() {
-                        pacmanOpenMouth();
-                    }
-                },
-                500
-        );
+        final Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                pacmanOpenMouth();
+            }
+        }, 1000);
     }
 
     private void pacmanOpenMouth() {
@@ -341,6 +336,27 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     /**
+     * Find nearest marker from RTree and get it from the observable.
+     * If observable is empty just return null.
+     *
+     * @param loc User location
+     * @return Marker to be removed.
+     */
+    private MarkerOptions findNearestMarker(Location loc) {
+        Observable entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
+
+        //Well this is certainly is not clean. I dont like throwing null checks everywhere
+        //But it is nice that it works.. clean later on.
+        Entry point = (Entry) entries.toBlocking().firstOrDefault(null);
+
+        if (point != null) {
+            return (MarkerOptions) markers.get(point.geometry().hashCode());
+        }
+
+        return null;
+    }
+
+    /**
      * When user location is updated get the nearest marker
      * and check if it is close enough to the user and then 'eat it'.
      *
@@ -349,13 +365,15 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     @Override
     public void onLocationChanged(Location location) {
        MarkerOptions options = findNearestMarker(location);
-       Marker marker = options.getMarker();
-       LatLng markerPos = marker.getPosition();
-       double distance = DistanceUtil.distance(locToPos(location), latLngToPos(markerPos));
+       if (options != null) {
+           Marker marker = options.getMarker();
+           LatLng markerPos = marker.getPosition();
+           double distance = DistanceUtil.distance(locToPos(location), latLngToPos(markerPos));
 
-        if (distance < MINIMUM_DISTANCE) {
-           mapboxMap.removeMarker(marker);
-           animatePacman();
+           if (distance < MINIMUM_DISTANCE) {
+               mapboxMap.removeMarker(marker);
+               animatePacman();
+           }
        }
     }
 }
