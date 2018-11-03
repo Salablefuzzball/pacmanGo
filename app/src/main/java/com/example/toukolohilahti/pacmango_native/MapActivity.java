@@ -8,6 +8,9 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import com.example.toukolohilahti.pacmango_native.Overpass.Overpass;
+import com.example.toukolohilahti.pacmango_native.Overpass.Position;
+import com.example.toukolohilahti.pacmango_native.Overpass.Road;
 import com.mapbox.android.core.location.LocationEngine;
 import com.mapbox.android.core.location.LocationEngineListener;
 import com.mapbox.android.core.location.LocationEnginePriority;
@@ -51,11 +54,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 self.mapboxMap = mapboxMap;
                 enableLocationPlugin();
                 Overpass pass = new Overpass();
-                ArrayList<Overpass.Road> roadList = pass.getRoads(originLocation);
+                ArrayList<Road> roadList = pass.getRoads(originLocation);
                 for (int index = 0; index < roadList.size(); index++) {
-                    Overpass.Road road = roadList.get(index);
+                    Road road = roadList.get(index);
                     for(int i = 0; i < road.geometry.size(); i++) {
-                        Overpass.Position loc = road.geometry.get(i);
+                        Position loc = road.geometry.get(i);
                         MarkerOptions options = new MarkerOptions();
                         LatLng pos = new LatLng();
                         pos.setLatitude(loc.lat);
