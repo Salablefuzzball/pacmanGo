@@ -24,6 +24,7 @@ import com.example.toukolohilahti.pacmango_native.overpass.Overpass;
 import com.example.toukolohilahti.pacmango_native.overpass.Position;
 import com.example.toukolohilahti.pacmango_native.overpass.Road;
 import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
+import com.example.toukolohilahti.pacmango_native.util.LoopDirection;
 import com.github.davidmoten.rtree.Entry;
 import com.github.davidmoten.rtree.RTree;
 import com.github.davidmoten.rtree.geometry.Geometries;
@@ -50,7 +51,9 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import rx.Observable;
 
@@ -105,14 +108,17 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 rTree = RTree.create();
                 markers = new SparseArray<MarkerOptions>();
                 createMarkers();
-                addGhosts();
             }
         });
     }
 
     private void addGhosts() {
-        //Make this random
-        Position loc = roadMap.valueAt(20).geometry.get(0);
+        int randomRoad = ThreadLocalRandom.current().nextInt(0, roadMap.size());
+        Road road = roadMap.valueAt(randomRoad);
+        int randomRoadSection = ThreadLocalRandom.current().nextInt(0, road.geometry.size());
+        Position loc = road.geometry.get(randomRoadSection);
+
+        LoopDirection direction = findDirection(road.geometry, randomRoadSection);
 
         MarkerOptions options = new MarkerOptions();
         LatLng pos = new LatLng();
@@ -122,13 +128,153 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
         Icon icon = iconFactory.fromResource(R.mipmap.green_ghost);
         options.setIcon(icon);
+        Marker ghost = mapboxMap.addMarker(options);
 
-        mapboxMap.addMarker(options);
+        animateGhost(ghost, road, direction, randomRoadSection);
     }
 
-    private void animateGhostMoving() {
+    private void animateGhost(Marker ghost, Road ghostRoad, LoopDirection direct, int indx) {
+        Handler handler = new Handler();
+        int delay = 500; //milliseconds
+        handler.postDelayed(new Runnable(){
+            int index = indx;
+            int prevIndex = -1;
+            Road road = ghostRoad;
+            Road deadEnd = null;
+            //Tells which direction to loop the list. Refactor to use Enum or something not retarded.
+            LoopDirection direction = direct;
+            public void run() {
+                LatLng ghostPos = ghost.getPosition();
+
+                Location location = new Location("DummyProvider");
+                location.setLatitude(ghostPos.getLatitude());
+                location.setLongitude(ghostPos.getLongitude());
+                Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, 75, 5);
+                Entry<String, Point> roadMarker = findNearestRoadToUser(nearestMarkers, deadEnd);
+                Road newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
+
+                if (prevIndex == index && newRoad.equals(road)) {
+                    deadEnd = road;
+                    roadMarker = findNearestRoadToUser(nearestMarkers, deadEnd);
+                    newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
+                }
+
+                //If it is a new road then calculate new index and direction
+                if (!newRoad.equals(road)) {
+                    road = newRoad;
+                    index = getIndexFromRoad(roadMarker);
+                    direction = findDirection(road.geometry, index);
+                }
+
+                prevIndex = index;
+
+                if ((direction.equals(LoopDirection.BACKWARD) && index >= 0) || (direction.equals(LoopDirection.FORWARD) && road.geometry.size() > index)) {
+                    //Update position
+                    Position loc = road.geometry.get(index);
+                    ghost.setPosition(new LatLng(loc.lat, loc.lon));
+                    mapboxMap.updateMarker(ghost);
+
+                    //Loop the arrayList in the correct direction
+                    if (direction.equals(LoopDirection.BACKWARD)) {
+                        index--;
+                    } else {
+                        index++;
+                    }
+                }
+
+                handler.postDelayed(this, delay);
+            }
+        }, delay);
+    }
+
+    /**
+     * When we turn to new road find out where that is in the list.
+     * @param marker The point we go next.
+     * @return Index to find correct position in the list.
+     */
+    private int getIndexFromRoad(Entry<String, Point> marker) {
+        Road road = roadMap.get(Integer.parseInt(marker.value()));
+        Point point = marker.geometry();
+
+        int index = 0;
+        for(Position pos: road.geometry) {
+            if (pos.lat == point.x() && pos.lon == point.y()) {
+                return index;
+            }
+            index++;
+        }
+
+        return 0;
 
     }
+
+    /**
+     * Find in which direction the ghost must start moving. Refactor.
+     *
+     * @param roadMarkers points on road.
+     * @param index nearest markers index.
+     * @return the direction where to loop.
+     */
+    private LoopDirection findDirection(ArrayList<Position> roadMarkers, int index) {
+        @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
+        if (index != 0) {
+            Position start = roadMarkers.get(index);
+            Position end = roadMarkers.get(index - 1);
+            if (DistanceUtil.distance(locToPos(userLoc), new Position(start.lat, start.lon)) > DistanceUtil.distance(locToPos(userLoc), new Position(end.lat, end.lon))) {
+                return LoopDirection.BACKWARD;
+            } else {
+                return LoopDirection.FORWARD;
+            }
+        } else {
+            Position start = roadMarkers.get(index);
+            Position end = roadMarkers.get(index + 1);
+            if (DistanceUtil.distance(locToPos(userLoc), new Position(start.lat, start.lon)) > DistanceUtil.distance(locToPos(userLoc), new Position(end.lat, end.lon))) {
+                return LoopDirection.FORWARD;
+            } else {
+                return LoopDirection.BACKWARD;
+            }
+        }
+
+    }
+
+    /**
+     * Find which road is nearest to the user based on the markers found near.
+     *
+     * Clean up this also.
+     * @param markers nearest markers to the user.
+     * @return RTree node which contains roads key so we find it from the Map.
+     */
+    private Entry<String, Point> findNearestRoadToUser(Iterable<Entry<String, Point>> markers, Road deadEnd) {
+        @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
+        double minDist = 0.0;
+        boolean initialized = false;
+        Entry<String, Point> nearestRoadMarker = null;
+        //If it is dead-end and there no new roads return something so no crash..
+        Entry<String, Point> emergencyMarker = null;
+
+        for(Entry<String, Point> marker: markers) {
+            Position markerLoc = new Position(marker.geometry().x(), marker.geometry().y());
+            double dist = DistanceUtil.distance(locToPos(userLoc), markerLoc);
+            Road road = roadMap.get(Integer.parseInt(marker.value()));
+            emergencyMarker = marker;
+            if (initialized && dist < minDist && !road.equals(deadEnd)) {
+                minDist = dist;
+                nearestRoadMarker = marker;
+            } else if (!initialized &&  !road.equals(deadEnd)){
+                minDist = dist;
+                initialized = true;
+                nearestRoadMarker = marker;
+            }
+        }
+
+        if (nearestRoadMarker == null) {
+            return emergencyMarker;
+        }
+
+        return nearestRoadMarker;
+    }
+
+
 
     private void hideMapboxAttributes() {
         mapboxMap.getUiSettings().setAttributionEnabled(false);
@@ -150,12 +296,13 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                         MarkerOptions options = createMarkerOptions(loc);
                         mapboxMap.addMarker(options);
                         Point point = Geometries.point(loc.lat, loc.lon);
-                        rTree = rTree.add("pac_dot", point);
+                        rTree = rTree.add(Integer.toString(road.hashCode()), point);
                         markers.put(point.hashCode(), options);
                     }
                 }
                 if (isLast == 1) {
                     pd.dismiss();
+                    addGhosts();
                 }
             }
         };
@@ -178,7 +325,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 }
             }
         }.start();
-
     }
 
     private MarkerOptions createMarkerOptions(Position loc) {
@@ -400,8 +546,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      * @param loc User location
      * @return Marker to be removed.
      */
-    private MarkerOptions findNearestMarker(Location loc, double dist, int count) {
-        Observable<Entry<String, Point>> entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
+    private MarkerOptions findNearestMarker(Location loc) {
+        Observable<Entry<String, Point>> entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
 
         //Well this is certainly is not clean. I dont like throwing null checks everywhere
         //But it is nice that it works.. clean later on.
@@ -421,6 +567,12 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         return null;
     }
 
+    private Iterable<Entry<String, Point>> findNearestMarkers(Location loc, double dist, int count) {
+        Observable<Entry<String, Point>> entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
+
+        return entries.toBlocking().toIterable();
+    }
+
     /**
      * When user location is updated get the nearest marker
      * and check if it is close enough to the user and then 'eat it'.
@@ -429,7 +581,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      */
     @Override
     public void onLocationChanged(Location location) {
-       MarkerOptions options = findNearestMarker(location, 100.0, 1);
+       MarkerOptions options = findNearestMarker(location);
        if (options != null) {
            Marker marker = options.getMarker();
            LatLng markerPos = marker.getPosition();

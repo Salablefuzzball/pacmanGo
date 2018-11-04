@@ -29,7 +29,7 @@ public class Overpass {
         final double LAT = currentPosition.getLatitude();
         final double LON = currentPosition.getLongitude();
 
-        final double RADIUS = 2; // km
+        final double RADIUS = 1; // km
         final double LAT_IN_KM = 110.574; // One latitude degree in km.
         final double LON_IN_KM = 111.320; // One longitude degree in km.
 
