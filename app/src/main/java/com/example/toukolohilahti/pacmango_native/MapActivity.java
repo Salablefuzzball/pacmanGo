@@ -155,11 +155,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     int isLast = index == roadList.size()-1 ? 1 : 0;
                     bundle.putInt("last", isLast);
                     msg.setData(bundle);
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
                     handler.sendMessage(msg);
                 }
             }
