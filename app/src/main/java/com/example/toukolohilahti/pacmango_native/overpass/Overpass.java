@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutionException;
 
 public class Overpass {
 
-    private static final String url = "https://overpass-api.de/api/interpreter";
+    private static final String url = "http://overpass-api.de/api/interpreter";
 
     public Overpass() {
 
