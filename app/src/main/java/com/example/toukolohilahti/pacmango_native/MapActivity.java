@@ -104,18 +104,23 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     private void addGhosts() {
-        MarkerOptions options = markers.valueAt(20);
+        //Make this random
+        Position loc = roadMap.valueAt(20).geometry.get(0);
 
-        MarkerOptions optionss = new MarkerOptions();
+        MarkerOptions options = new MarkerOptions();
         LatLng pos = new LatLng();
-        pos.setLatitude(options.getPosition().getLatitude());
-        pos.setLongitude(options.getPosition().getLongitude());
+        pos.setLatitude(loc.lat);
+        pos.setLongitude(loc.lon);
         options.setPosition(pos);
         IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
         Icon icon = iconFactory.fromResource(R.mipmap.green_ghost);
         options.setIcon(icon);
 
-        mapboxMap.addMarker(optionss);
+        mapboxMap.addMarker(options);
+    }
+
+    private void animateGhostMoving() {
+
     }
 
     private void hideMapboxAttributes() {
