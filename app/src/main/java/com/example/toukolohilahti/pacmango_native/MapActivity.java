@@ -1,8 +1,13 @@
 package com.example.toukolohilahti.pacmango_native;
 
+import android.animation.ObjectAnimator;
+import android.animation.TypeEvaluator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
@@ -66,15 +71,23 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private LocationEngine locationEngine;
     private Location originLocation;
     private SparseArray<MarkerOptions> markers;
-    private RTree<String, Point> rTree;
+
+    //We need two trees because when you eat pac-dots
+    //markers need to be removed.
+    private RTree<String, Point> rTreeMarker;
+    //Navigation tree that will be preserved. Not optimal, try to just use one tree.
+    private RTree<String, Point> rTreeNavigation;
+
+    //Key is road.HashCode and the RTree has it as value for position.
     private SparseArray<Road> roadMap;
 
     ProgressDialog pd;
 
     //meters
-    private static final int MINIMUM_DISTANCE = 5;
+    private static final int EATING_DISTANCE = 5;
+    private static final int DEATH_RADIUS = 20;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
-
+    private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,14 +118,22 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 //Consider using these, maybe more immersed gameplay?
                 //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
                 //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
-                rTree = RTree.create();
+                rTreeMarker = RTree.create();
+                rTreeNavigation = RTree.create();
                 markers = new SparseArray<MarkerOptions>();
                 createMarkers();
             }
         });
     }
 
-    private void addGhosts() {
+    private void createGhosts() {
+        for (int ghost: GHOSTS) {
+            createGhost(ghost);
+        }
+    }
+
+    private void createGhost(int ghost) {
+        //Add it to a random location
         int randomRoad = ThreadLocalRandom.current().nextInt(0, roadMap.size());
         Road road = roadMap.valueAt(randomRoad);
         int randomRoadSection = ThreadLocalRandom.current().nextInt(0, road.geometry.size());
@@ -126,11 +147,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         pos.setLongitude(loc.lon);
         options.setPosition(pos);
         IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.green_ghost);
+        Icon icon = iconFactory.fromResource(ghost);
         options.setIcon(icon);
-        Marker ghost = mapboxMap.addMarker(options);
+        Marker ghostMarker = mapboxMap.addMarker(options);
 
-        animateGhost(ghost, road, direction, randomRoadSection);
+        animateGhost(ghostMarker, road, direction, randomRoadSection);
     }
 
     private void animateGhost(Marker ghost, Road ghostRoad, LoopDirection direct, int indx) {
@@ -138,41 +159,42 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         int delay = 500; //milliseconds
         handler.postDelayed(new Runnable(){
             int index = indx;
-            int prevIndex = -1;
             Road road = ghostRoad;
-            Road deadEnd = null;
+            LatLng ghostPos = ghost.getPosition();
             //Tells which direction to loop the list. Refactor to use Enum or something not retarded.
             LoopDirection direction = direct;
             public void run() {
-                LatLng ghostPos = ghost.getPosition();
-
+                //We have way too many 'Location' objects that
                 Location location = new Location("DummyProvider");
                 location.setLatitude(ghostPos.getLatitude());
                 location.setLongitude(ghostPos.getLongitude());
+
                 Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, 75, 5);
-                Entry<String, Point> roadMarker = findNearestRoadToUser(nearestMarkers, deadEnd);
-                Road newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
+                Entry<String, Point> roadMarker = findNearestRoadToUser(nearestMarkers);
 
-                if (prevIndex == index && newRoad.equals(road)) {
-                    deadEnd = road;
-                    roadMarker = findNearestRoadToUser(nearestMarkers, deadEnd);
-                    newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
+                if (roadMarker != null) {
+                    Road newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
+
+                    //If it is a new road then calculate new index and direction
+                    if (!newRoad.equals(road)) {
+                        road = newRoad;
+                        index = getIndexFromRoad(roadMarker);
+                        direction = findDirection(road.geometry, index);
+                    }
                 }
 
-                //If it is a new road then calculate new index and direction
-                if (!newRoad.equals(road)) {
-                    road = newRoad;
-                    index = getIndexFromRoad(roadMarker);
-                    direction = findDirection(road.geometry, index);
-                }
-
-                prevIndex = index;
-
+                //Lets make sure our app does not crash
                 if ((direction.equals(LoopDirection.BACKWARD) && index >= 0) || (direction.equals(LoopDirection.FORWARD) && road.geometry.size() > index)) {
                     //Update position
                     Position loc = road.geometry.get(index);
-                    ghost.setPosition(new LatLng(loc.lat, loc.lon));
-                    mapboxMap.updateMarker(ghost);
+                    ghostPos = new LatLng(loc.lat, loc.lon);
+
+                    ValueAnimator markerAnimator = ObjectAnimator.ofObject(ghost, "position",
+                            new LatLngEvaluator(), ghost.getPosition(), ghostPos);
+                    markerAnimator.setDuration(2000);
+                    markerAnimator.start();
+
+                    checkIfGameOver(ghostPos);
 
                     //Loop the arrayList in the correct direction
                     if (direction.equals(LoopDirection.BACKWARD)) {
@@ -180,11 +202,53 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     } else {
                         index++;
                     }
+                } else {
+                    //If stuck then start going other direction.
+                    if (direction == LoopDirection.FORWARD) {
+                        direction = LoopDirection.BACKWARD;
+                        index--;
+                    } else {
+                        direction = LoopDirection.FORWARD;
+                        index++;
+                    }
                 }
 
                 handler.postDelayed(this, delay);
             }
         }, delay);
+    }
+
+    private void checkIfGameOver(LatLng loc) {
+        @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
+        double lat1 = userLoc.getLatitude();
+        double lon1 = userLoc.getLongitude();
+        double lat2 = loc.getLatitude();
+        double lon2 = loc.getLongitude();
+
+        if (DEATH_RADIUS > DistanceUtil.distance(lat1, lon1, lat2, lon2)) {
+            gameOver();
+        }
+    }
+
+    private void gameOver() {
+        //Just show something for now.
+        AlertDialog.Builder builder;
+        builder = new AlertDialog.Builder(MapActivity.this, android.R.style.Theme_Material_Dialog_Alert);
+
+        builder.setTitle("YOU ARE DEAD")
+                .setMessage("DO YOU UNDERSTAND??")
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // continue with delete
+                    }
+                })
+                .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // do nothing
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
     }
 
     /**
@@ -217,10 +281,14 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      */
     private LoopDirection findDirection(ArrayList<Position> roadMarkers, int index) {
         @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
+
+        double userLat = userLoc.getLatitude();
+        double userLon = userLoc.getLongitude();
+
         if (index != 0) {
             Position start = roadMarkers.get(index);
             Position end = roadMarkers.get(index - 1);
-            if (DistanceUtil.distance(locToPos(userLoc), new Position(start.lat, start.lon)) > DistanceUtil.distance(locToPos(userLoc), new Position(end.lat, end.lon))) {
+            if (DistanceUtil.distance(userLat, userLon, start.lat, start.lon) > DistanceUtil.distance(userLat, userLon, end.lat, end.lon)) {
                 return LoopDirection.BACKWARD;
             } else {
                 return LoopDirection.FORWARD;
@@ -228,7 +296,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         } else {
             Position start = roadMarkers.get(index);
             Position end = roadMarkers.get(index + 1);
-            if (DistanceUtil.distance(locToPos(userLoc), new Position(start.lat, start.lon)) > DistanceUtil.distance(locToPos(userLoc), new Position(end.lat, end.lon))) {
+            if (DistanceUtil.distance(userLat, userLon, start.lat, start.lon) > DistanceUtil.distance(userLat, userLon, end.lat, end.lon)) {
                 return LoopDirection.FORWARD;
             } else {
                 return LoopDirection.BACKWARD;
@@ -244,31 +312,26 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      * @param markers nearest markers to the user.
      * @return RTree node which contains roads key so we find it from the Map.
      */
-    private Entry<String, Point> findNearestRoadToUser(Iterable<Entry<String, Point>> markers, Road deadEnd) {
+    private Entry<String, Point> findNearestRoadToUser(Iterable<Entry<String, Point>> markers) {
         @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
+        double userLat = userLoc.getLatitude();
+        double userLon = userLoc.getLongitude();
         double minDist = 0.0;
         boolean initialized = false;
         Entry<String, Point> nearestRoadMarker = null;
-        //If it is dead-end and there no new roads return something so no crash..
-        Entry<String, Point> emergencyMarker = null;
 
         for(Entry<String, Point> marker: markers) {
-            Position markerLoc = new Position(marker.geometry().x(), marker.geometry().y());
-            double dist = DistanceUtil.distance(locToPos(userLoc), markerLoc);
-            Road road = roadMap.get(Integer.parseInt(marker.value()));
-            emergencyMarker = marker;
-            if (initialized && dist < minDist && !road.equals(deadEnd)) {
+            double markerLat = marker.geometry().x();
+            double markerLon = marker.geometry().y();
+            double dist = DistanceUtil.distance(userLat, userLon, markerLat, markerLon);
+            if (initialized && dist < minDist) {
                 minDist = dist;
                 nearestRoadMarker = marker;
-            } else if (!initialized &&  !road.equals(deadEnd)){
+            } else if (!initialized){
                 minDist = dist;
+                nearestRoadMarker = marker;
                 initialized = true;
-                nearestRoadMarker = marker;
             }
-        }
-
-        if (nearestRoadMarker == null) {
-            return emergencyMarker;
         }
 
         return nearestRoadMarker;
@@ -296,13 +359,16 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                         MarkerOptions options = createMarkerOptions(loc);
                         mapboxMap.addMarker(options);
                         Point point = Geometries.point(loc.lat, loc.lon);
-                        rTree = rTree.add(Integer.toString(road.hashCode()), point);
+                        rTreeMarker = rTreeMarker.add(Integer.toString(road.hashCode()), point);
+                        rTreeNavigation = rTreeNavigation.add(Integer.toString(road.hashCode()), point);
                         markers.put(point.hashCode(), options);
                     }
                 }
+
                 if (isLast == 1) {
                     pd.dismiss();
-                    addGhosts();
+                    //RELEASE THEM!!!
+                    createGhosts();
                 }
             }
         };
@@ -455,6 +521,101 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         }
     }
 
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        mapView.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        MultiDex.install(this);
+    }
+
+    /**
+     * Open and close pacmans mouth by changing the drawable.
+     */
+    private void animatePacman() {
+        pacmanCloseMouth();
+        final Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                pacmanOpenMouth();
+            }
+        }, 1000);
+    }
+
+    private void pacmanOpenMouth() {
+        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
+    }
+
+    private void pacmanCloseMouth() {
+        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
+    }
+
+    /**
+     * Find nearest marker from RTree and get it from the observable.
+     * If observable is empty just return null.
+     *
+     * @param loc User location
+     * @return Marker to be removed.
+     */
+    private Entry<String, Point> findNearestMarker(Location loc) {
+        Observable<Entry<String, Point>> entries = rTreeMarker.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
+
+        //Well this is certainly is not clean. I dont like throwing null checks everywhere
+        //But it is nice that it works.. clean later on.
+        return entries.toBlocking().firstOrDefault(null);
+    }
+
+    private Iterable<Entry<String, Point>> findNearestMarkers(Location loc, double dist, int count) {
+        Observable<Entry<String, Point>> entries = rTreeNavigation.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
+
+        return entries.toBlocking().toIterable();
+    }
+
+    /**
+     * When user location is updated get the nearest marker
+     * and check if it is close enough to the user and then 'eat it'.
+     *
+     * @param location user Location.
+     */
+    @Override
+    public void onLocationChanged(Location location) {
+       Entry<String, Point> point = findNearestMarker(location);
+       if (point != null) {
+           int key = point.geometry().hashCode();
+           MarkerOptions options = markers.get(key);
+           Marker marker = options.getMarker();
+           LatLng markerPos = marker.getPosition();
+           double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
+
+           //Nom Nom
+           if (distance < EATING_DISTANCE) {
+               mapboxMap.removeMarker(marker);
+               markers.remove(key);
+               rTreeMarker.delete(point);
+               animatePacman();
+           }
+       }
+    }
+
+    private static class LatLngEvaluator implements TypeEvaluator<LatLng> {
+        // Method is used to interpolate the marker animation.
+
+        private LatLng latLng = new LatLng();
+
+        @Override
+        public LatLng evaluate(float fraction, LatLng startValue, LatLng endValue) {
+            latLng.setLatitude(startValue.getLatitude()
+                    + ((endValue.getLatitude() - startValue.getLatitude()) * fraction));
+            latLng.setLongitude(startValue.getLongitude()
+                    + ((endValue.getLongitude() - startValue.getLongitude()) * fraction));
+            return latLng;
+        }
+    }
 
     @Override
     public void onStart() {
@@ -493,104 +654,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        mapView.onSaveInstanceState(outState);
-    }
-
-    @Override
-    protected void attachBaseContext(Context base) {
-        super.attachBaseContext(base);
-        MultiDex.install(this);
-    }
-
-    @Override
     public void onConnected() {
 
-    }
-
-    /**
-     * Open and close pacmans mouth by changing the drawable.
-     */
-    private void animatePacman() {
-        pacmanCloseMouth();
-        final Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                pacmanOpenMouth();
-            }
-        }, 1000);
-    }
-
-    private void pacmanOpenMouth() {
-        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
-    }
-
-    private void pacmanCloseMouth() {
-        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
-    }
-
-    private Position locToPos(Location loc) {
-        return new Position(loc.getLatitude(), loc.getLongitude());
-    }
-
-    private Position latLngToPos(LatLng loc) {
-        return new Position(loc.getLatitude(), loc.getLongitude());
-    }
-
-    /**
-     * Find nearest marker from RTree and get it from the observable.
-     * If observable is empty just return null.
-     *
-     * @param loc User location
-     * @return Marker to be removed.
-     */
-    private MarkerOptions findNearestMarker(Location loc) {
-        Observable<Entry<String, Point>> entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
-
-        //Well this is certainly is not clean. I dont like throwing null checks everywhere
-        //But it is nice that it works.. clean later on.
-        Entry<String, Point> point = entries.toBlocking().firstOrDefault(null);
-
-        //If actually contains something then remove point from tree and map
-        //and return the found MarkerOptions
-        if (point != null) {
-            rTree.delete(point);
-            int key = point.geometry().hashCode();
-            MarkerOptions options = markers.get(key);
-            markers.remove(key);
-            return options;
-
-        }
-
-        return null;
-    }
-
-    private Iterable<Entry<String, Point>> findNearestMarkers(Location loc, double dist, int count) {
-        Observable<Entry<String, Point>> entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
-
-        return entries.toBlocking().toIterable();
-    }
-
-    /**
-     * When user location is updated get the nearest marker
-     * and check if it is close enough to the user and then 'eat it'.
-     *
-     * @param location user Location.
-     */
-    @Override
-    public void onLocationChanged(Location location) {
-       MarkerOptions options = findNearestMarker(location);
-       if (options != null) {
-           Marker marker = options.getMarker();
-           LatLng markerPos = marker.getPosition();
-           double distance = DistanceUtil.distance(locToPos(location), latLngToPos(markerPos));
-
-           if (distance < MINIMUM_DISTANCE) {
-               mapboxMap.removeMarker(marker);
-               animatePacman();
-           }
-       }
     }
 }

@@ -39,8 +39,10 @@ public class Road extends Overpass implements Parcelable {
         while (addedItems != 0) {
             int tempAddedItems = positionArrayList.size();
             for(int index = 1; index < positionArrayList.size(); index++) {
-                if(DistanceUtil.distance(positionArrayList.get(index-1), positionArrayList.get(index)) > 15) {
-                    positionArrayList.add(index, DistanceUtil.calculateMidPoint(positionArrayList.get(index-1), positionArrayList.get(index)));
+                Position pos1 = positionArrayList.get(index-1);
+                Position pos2 = positionArrayList.get(index);
+                if(DistanceUtil.distance(pos1.lat, pos1.lon, pos2.lat, pos2.lon) > 15) {
+                    positionArrayList.add(index, DistanceUtil.calculateMidPoint(pos1.lat, pos1.lon, pos2.lat, pos2.lon));
                     index++;
                 }
                 addedItems = positionArrayList.size() - tempAddedItems;
