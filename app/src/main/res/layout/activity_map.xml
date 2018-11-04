@@ -5,6 +5,29 @@
     android:layout_height="match_parent"
     xmlns:app="http://schemas.android.com/tools">
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#E8E8E8">
+        <TextView
+            android:id="@+id/loading_spinner_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/loading_spinner_title" />
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#000000" />
+
+        <Spinner
+            android:id="@+id/loading_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="37dp" />
+
+
+    </LinearLayout>
+
     <com.mapbox.mapboxsdk.maps.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"

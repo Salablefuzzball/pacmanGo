@@ -1,5 +1,8 @@
 package com.example.toukolohilahti.pacmango_native.overpass;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
 
 import org.json.JSONArray;
@@ -11,7 +14,7 @@ import java.util.ArrayList;
 /**
  * Data holder class for road. Contains type, id and geometry of road.
  */
-public class Road extends Overpass {
+public class Road extends Overpass implements Parcelable {
     public String type;
     public int id;
     public ArrayList<Position> geometry;
@@ -72,5 +75,15 @@ public class Road extends Overpass {
                 ", id=" + id +
                 ", geometry=" + geometry +
                 '}';
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+
     }
 }

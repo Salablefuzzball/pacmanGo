@@ -1,11 +1,14 @@
 package com.example.toukolohilahti.pacmango_native;
 
+import android.annotation.SuppressLint;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.AppCompatActivity;
@@ -14,6 +17,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,6 +68,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private SparseArray markers;
     private RTree<String, Point> rTree;
 
+    ProgressDialog pd;
+
     //meters
     private static final int MINIMUM_DISTANCE = 5;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
@@ -73,6 +79,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     protected void onCreate(Bundle savedInstanceState) {
         MapActivity self = this;
         super.onCreate(savedInstanceState);
+
+        pd = new ProgressDialog(this);
 
         Mapbox.getInstance(this, getString(R.string.mapbox_access_token));
         setContentView(R.layout.activity_map);
@@ -109,18 +117,54 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     private void createMarkers() {
-        Overpass pass = new Overpass();
-        ArrayList<Road> roadList = pass.getRoads(originLocation);
+        @SuppressLint("HandlerLeak")
+        final Handler handler = new Handler() {
 
-        for (Road road: roadList) {
-            for (Position loc: road.geometry) {
-                MarkerOptions options = createMarkerOptions(loc);
-                mapboxMap.addMarker(options);
-                Point point = Geometries.point(loc.lat,loc.lon);
-                rTree = rTree.add("pac_dot", point);
-                markers.put(point.hashCode(), options);
+            @Override
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
+                pd.setMessage(getString(R.string.generating_spinner_title));
+                Road road = msg.getData().getParcelable("road");
+                int isLast = msg.getData().getInt("last");
+                if(road != null) {
+                    for (Position loc : road.geometry) {
+                        MarkerOptions options = createMarkerOptions(loc);
+                        mapboxMap.addMarker(options);
+                        Point point = Geometries.point(loc.lat, loc.lon);
+                        rTree = rTree.add("pac_dot", point);
+                        markers.put(point.hashCode(), options);
+                    }
+                }
+                if (isLast == 1) {
+                    pd.dismiss();
+                }
             }
-        }
+        };
+
+        pd.setMessage(getString(R.string.loading_spinner_title));
+        pd.show();
+
+        new Thread() {
+            public void run() {
+                Overpass pass = new Overpass();
+                ArrayList<Road> roadList = pass.getRoads(originLocation);
+                for (int index = 0; index < roadList.size(); index++) {
+                    Message msg = new Message();
+                    Bundle bundle = new Bundle();
+                    bundle.putParcelable("road", roadList.get(index));
+                    int isLast = index == roadList.size()-1 ? 1 : 0;
+                    bundle.putInt("last", isLast);
+                    msg.setData(bundle);
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    handler.sendMessage(msg);
+                }
+            }
+        }.start();
+
     }
 
     private MarkerOptions createMarkerOptions(Position loc) {
