@@ -2,7 +2,6 @@ package com.example.toukolohilahti.pacmango_native;
 
 import android.os.AsyncTask;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
@@ -13,7 +12,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
 
 public class HttpPostQuery extends AsyncTask<String, String, JSONObject> {
 
