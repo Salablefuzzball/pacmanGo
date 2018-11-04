@@ -17,7 +17,6 @@ import android.support.v7.widget.Toolbar;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 

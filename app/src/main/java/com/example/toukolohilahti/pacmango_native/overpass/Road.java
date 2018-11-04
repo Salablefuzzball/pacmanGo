@@ -1,5 +1,6 @@
 package com.example.toukolohilahti.pacmango_native.overpass;
 
+import android.annotation.SuppressLint;
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 /**
  * Data holder class for road. Contains type, id and geometry of road.
  */
+@SuppressLint("ParcelCreator")
 public class Road extends Overpass implements Parcelable {
     public String type;
     public int id;
