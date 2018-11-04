@@ -1,6 +1,7 @@
 package com.example.toukolohilahti.pacmango_native.overpass;
 
 import android.location.Location;
+import android.util.SparseArray;
 
 import com.example.toukolohilahti.pacmango_native.HttpPostQuery;
 
@@ -46,7 +47,7 @@ public class Overpass {
      * @param currentPosition Location object of current position.
      * @return List of roads.
      */
-    public ArrayList<Road> getRoads(Location currentPosition) {
+    public SparseArray<Road> getRoads(Location currentPosition) {
         Area area = calculateArea(currentPosition);
         final String QUERY = "<osm-script output='json' output-config='' timeout='60'> <union into='_'>"+
                 "<query into='_' type='way'><has-kv k='highway' modv='' v='pedestrian'/>"+
@@ -61,7 +62,7 @@ public class Overpass {
                 "<recurse from='_' into='_' type='down'/><print e='' from='_' geometry='skeleton' ids='yes' limit='' mode='skeleton' n='' order='quadtile' s='' w=''/></osm-script>";
 
         HttpPostQuery overpass = new HttpPostQuery();
-        ArrayList<Road> roadList = new ArrayList<>();
+        SparseArray<Road> roadMap = new SparseArray<>();
         try {
             JSONObject response = overpass.execute(url, QUERY).get();
             JSONArray roads = response.getJSONArray("elements");
@@ -69,7 +70,7 @@ public class Overpass {
                 JSONObject roadObj = roads.getJSONObject(index);
                 if (roadObj.getJSONArray("geometry").length() > 1) {
                     Road road = new Road(roadObj.getString("type"), roadObj.getInt("id"), roadObj.getJSONArray("geometry"));
-                    roadList.add(road);
+                    roadMap.put(road.hashCode(), road);
                 }
             }
 
@@ -80,7 +81,7 @@ public class Overpass {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        return roadList;
+        return roadMap;
     }
 
 }

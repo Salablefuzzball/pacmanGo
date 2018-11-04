@@ -47,7 +47,6 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import rx.Observable;
@@ -60,9 +59,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private LocationLayerPlugin locationLayerPlugin;
     private LocationEngine locationEngine;
     private Location originLocation;
-    private Toolbar mTopToolbar;
-    private SparseArray markers;
+    private SparseArray<MarkerOptions> markers;
     private RTree<String, Point> rTree;
+    private SparseArray<Road> roadMap;
 
     //meters
     private static final int MINIMUM_DISTANCE = 5;
@@ -78,7 +77,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         setContentView(R.layout.activity_map);
 
         //Set custom toolbar
-        mTopToolbar = findViewById(R.id.toolbar_top);
+        Toolbar mTopToolbar = findViewById(R.id.toolbar_top);
         setSupportActionBar(mTopToolbar);
 
         //Set custom Arcade font
@@ -99,8 +98,24 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 rTree = RTree.create();
                 markers = new SparseArray<MarkerOptions>();
                 createMarkers();
+                addGhosts();
             }
         });
+    }
+
+    private void addGhosts() {
+        MarkerOptions options = markers.valueAt(20);
+
+        MarkerOptions optionss = new MarkerOptions();
+        LatLng pos = new LatLng();
+        pos.setLatitude(options.getPosition().getLatitude());
+        pos.setLongitude(options.getPosition().getLongitude());
+        options.setPosition(pos);
+        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+        Icon icon = iconFactory.fromResource(R.mipmap.green_ghost);
+        options.setIcon(icon);
+
+        mapboxMap.addMarker(optionss);
     }
 
     private void hideMapboxAttributes() {
@@ -110,14 +125,14 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     private void createMarkers() {
         Overpass pass = new Overpass();
-        ArrayList<Road> roadList = pass.getRoads(originLocation);
-
-        for (Road road: roadList) {
+        roadMap = pass.getRoads(originLocation);
+        for(int i = 0; i < roadMap.size(); i++) {
+            Road road = roadMap.valueAt(i);
             for (Position loc: road.geometry) {
                 MarkerOptions options = createMarkerOptions(loc);
                 mapboxMap.addMarker(options);
                 Point point = Geometries.point(loc.lat,loc.lon);
-                rTree = rTree.add("pac_dot", point);
+                rTree.add(Integer.toString(road.hashCode()), point);
                 markers.put(point.hashCode(), options);
             }
         }
@@ -342,19 +357,19 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      * @param loc User location
      * @return Marker to be removed.
      */
-    private MarkerOptions findNearestMarker(Location loc) {
-        Observable entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
+    private MarkerOptions findNearestMarker(Location loc, double dist, int count) {
+        Observable<Entry<String, Point>> entries = rTree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
 
         //Well this is certainly is not clean. I dont like throwing null checks everywhere
         //But it is nice that it works.. clean later on.
-        Entry point = (Entry) entries.toBlocking().firstOrDefault(null);
+        Entry<String, Point> point = entries.toBlocking().firstOrDefault(null);
 
         //If actually contains something then remove point from tree and map
         //and return the found MarkerOptions
         if (point != null) {
-            rTree.delete("pac_dot", (Point) point.geometry());
+            rTree.delete(point);
             int key = point.geometry().hashCode();
-            MarkerOptions options = (MarkerOptions) markers.get(key);
+            MarkerOptions options = markers.get(key);
             markers.remove(key);
             return options;
 
@@ -371,7 +386,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      */
     @Override
     public void onLocationChanged(Location location) {
-       MarkerOptions options = findNearestMarker(location);
+       MarkerOptions options = findNearestMarker(location, 100.0, 1);
        if (options != null) {
            Marker marker = options.getMarker();
            LatLng markerPos = marker.getPosition();
