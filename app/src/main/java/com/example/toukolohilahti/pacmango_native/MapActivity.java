@@ -87,7 +87,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private static final int EATING_DISTANCE = 5;
     private static final int DEATH_RADIUS = 20;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
-    private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost};
+    private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
+            R.mipmap.pink_ghost, R.mipmap.yellow_ghost};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -154,23 +155,26 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         animateGhost(ghostMarker, road, direction, randomRoadSection);
     }
 
-    private void animateGhost(Marker ghost, Road ghostRoad, LoopDirection direct, int indx) {
+    private void animateGhost(Marker ghost, Road currentRoad, LoopDirection drct, int indx) {
         Handler handler = new Handler();
-        int delay = 500; //milliseconds
+        int delay = 1000; //milliseconds
+
         handler.postDelayed(new Runnable(){
             int index = indx;
-            Road road = ghostRoad;
+            Road road = currentRoad;
             LatLng ghostPos = ghost.getPosition();
-            //Tells which direction to loop the list. Refactor to use Enum or something not retarded.
-            LoopDirection direction = direct;
+            LoopDirection direction = drct;
+            int searchDist = 75;
+            int searchCount = 5;
+
             public void run() {
                 //We have way too many 'Location' objects that
                 Location location = new Location("DummyProvider");
                 location.setLatitude(ghostPos.getLatitude());
                 location.setLongitude(ghostPos.getLongitude());
 
-                Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, 75, 5);
-                Entry<String, Point> roadMarker = findNearestRoadToUser(nearestMarkers);
+                Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, searchDist, searchCount);
+                Entry<String, Point> roadMarker = findNearestRoadToUser(nearestMarkers, currentRoad);
 
                 if (roadMarker != null) {
                     Road newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
@@ -185,7 +189,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
                 //Lets make sure our app does not crash
                 if ((direction.equals(LoopDirection.BACKWARD) && index >= 0) || (direction.equals(LoopDirection.FORWARD) && road.geometry.size() > index)) {
-                    //Update position
+                    searchDist = 75;
+                    searchCount = 5;
+
                     Position loc = road.geometry.get(index);
                     ghostPos = new LatLng(loc.lat, loc.lon);
 
@@ -194,7 +200,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     markerAnimator.setDuration(2000);
                     markerAnimator.start();
 
-                    checkIfGameOver(ghostPos);
+                    //checkIfGameOver(ghostPos);
 
                     //Loop the arrayList in the correct direction
                     if (direction.equals(LoopDirection.BACKWARD)) {
@@ -203,14 +209,10 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                         index++;
                     }
                 } else {
-                    //If stuck then start going other direction.
-                    if (direction == LoopDirection.FORWARD) {
-                        direction = LoopDirection.BACKWARD;
-                        index--;
-                    } else {
-                        direction = LoopDirection.FORWARD;
-                        index++;
-                    }
+                    //Cheap tricks to prevent ghosts getting stuck.
+                    System.out.println("Stuck");
+                    searchDist = 200;
+                    searchCount = 20;
                 }
 
                 handler.postDelayed(this, delay);
@@ -307,31 +309,42 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     /**
      * Find which road is nearest to the user based on the markers found near.
-     *
+     * Prioritize new roads so does not get stuck so easily. Use same road if no options.
      * Clean up this also.
      * @param markers nearest markers to the user.
      * @return RTree node which contains roads key so we find it from the Map.
      */
-    private Entry<String, Point> findNearestRoadToUser(Iterable<Entry<String, Point>> markers) {
+    private Entry<String, Point> findNearestRoadToUser(Iterable<Entry<String, Point>> markers, Road currentRoad) {
         @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
         double userLat = userLoc.getLatitude();
         double userLon = userLoc.getLongitude();
         double minDist = 0.0;
         boolean initialized = false;
         Entry<String, Point> nearestRoadMarker = null;
+        Entry<String, Point> backupMarker = null;
 
         for(Entry<String, Point> marker: markers) {
             double markerLat = marker.geometry().x();
             double markerLon = marker.geometry().y();
             double dist = DistanceUtil.distance(userLat, userLon, markerLat, markerLon);
-            if (initialized && dist < minDist) {
-                minDist = dist;
-                nearestRoadMarker = marker;
-            } else if (!initialized){
-                minDist = dist;
-                nearestRoadMarker = marker;
-                initialized = true;
+            Road road = roadMap.get(Integer.parseInt(marker.value()));
+            backupMarker = marker;
+
+            if (!currentRoad.equals(road)) {
+                if (initialized && dist < minDist) {
+                    minDist = dist;
+                    nearestRoadMarker = marker;
+                } else if (!initialized){
+                    minDist = dist;
+                    nearestRoadMarker = marker;
+                    initialized = true;
+                }
             }
+        }
+
+        if (nearestRoadMarker == null) {
+            System.out.println("No new roads found");
+            return backupMarker;
         }
 
         return nearestRoadMarker;
