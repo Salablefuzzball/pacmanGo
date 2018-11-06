@@ -42,7 +42,7 @@ public class HighScores {
         }
     }
 
-    private String url = "http://192.168.1.100:6565/highscore";
+    private String url = "http://pacmango.dy.fi:6565/highscore";
 
     public HighScores() {
 
