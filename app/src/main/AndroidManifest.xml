@@ -13,7 +13,8 @@
         android:name="android.support.multidex.MultiDexApplication"
         tools:ignore="GoogleAppIndexingWarning"
         android:fullBackupContent="@xml/backup_descriptor">
-        <activity android:name=".MapActivity">
+        <activity android:name=".MapActivity"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

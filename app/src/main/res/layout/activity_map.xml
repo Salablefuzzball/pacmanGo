@@ -24,17 +24,19 @@
             android:id="@+id/loading_spinner"
             android:layout_width="match_parent"
             android:layout_height="37dp" />
-
-
     </LinearLayout>
 
     <com.mapbox.mapboxsdk.maps.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        mapbox:mapbox_styleUrl="mapbox://styles/salablefuzzball/cjo0cw51fa0m52rpepsm2teyw"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="0dp"
         mapbox:mapbox_cameraTilt="30"
-        mapbox:mapbox_cameraZoom="17" />
+        mapbox:mapbox_cameraZoom="17"
+        mapbox:mapbox_styleUrl="mapbox://styles/salablefuzzball/cjo0cw51fa0m52rpepsm2teyw"></com.mapbox.mapboxsdk.maps.MapView>
 
     <android.support.v7.widget.Toolbar
         android:id="@+id/toolbar_top"
@@ -50,7 +52,13 @@
             android:textColor="#ffffff"
             android:textSize="30sp"
             android:id="@+id/toolbar_title" />
-
-
     </android.support.v7.widget.Toolbar>
+
+    <TextView
+        android:id="@+id/timeScore"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#ffffff"
+        android:textSize="30sp"
+        android:gravity="end"/>
 </RelativeLayout>

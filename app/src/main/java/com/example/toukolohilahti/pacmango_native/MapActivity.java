@@ -10,18 +10,27 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.location.Location;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
+import android.provider.CalendarContract;
 import android.support.annotation.NonNull;
 import android.support.multidex.MultiDex;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -71,6 +80,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private LocationEngine locationEngine;
     private Location originLocation;
     private SparseArray<MarkerOptions> markers;
+    private int gameTime = 60;
 
     //We need two trees because when you eat pac-dots
     //markers need to be removed.
@@ -105,7 +115,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         setSupportActionBar(mTopToolbar);
 
         //Set custom Arcade font
-        setTitleTypeface();
+        TextView title = findViewById(R.id.toolbar_title);
+        setTypeface(title);
 
         mapView = findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
@@ -197,7 +208,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
                     ValueAnimator markerAnimator = ObjectAnimator.ofObject(ghost, "position",
                             new LatLngEvaluator(), ghost.getPosition(), ghostPos);
-                    markerAnimator.setDuration(2000);
+                    markerAnimator.setDuration(3000);
                     markerAnimator.start();
 
                     //checkIfGameOver(ghostPos);
@@ -211,8 +222,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 } else {
                     //Cheap tricks to prevent ghosts getting stuck.
                     System.out.println("Stuck");
-                    searchDist = 200;
-                    searchCount = 20;
+                    searchDist += 125;
+                    searchCount += 15;
                 }
 
                 handler.postDelayed(this, delay);
@@ -380,8 +391,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
                 if (isLast == 1) {
                     pd.dismiss();
-                    //RELEASE THEM!!!
-                    createGhosts();
+                    startGame();
                 }
             }
         };
@@ -403,6 +413,52 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     handler.sendMessage(msg);
                 }
             }
+        }.start();
+    }
+
+    private void startGame() {
+        //RELEASE THEM!!!
+        createGhosts();
+        createTimer();
+    }
+
+    private void createTimer() {
+        Toolbar bar = findViewById(R.id.toolbar_top);
+        int barHeight = bar.getHeight();
+        TextView timer = findViewById(R.id.timeScore);
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0,10 + barHeight,10,0);
+        params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+        timer.setLayoutParams(params);
+        setTypeface(timer);
+
+        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.blink);
+
+        //Could use some other method here but Long.MAX_VALUE is pretty damn long.
+        new CountDownTimer(Long.MAX_VALUE, 1000) {
+
+            public void onTick(long millisUntilFinished) {
+                timer.setText(String.valueOf(gameTime));
+
+                if (gameTime == 0) {
+                    gameOver();
+                }
+
+                if (gameTime <= 10) {
+                    timer.setAnimation(animation);
+                    timer.setTextColor(Color.RED);
+                } else {
+                    timer.setTextColor(Color.WHITE);
+                    timer.clearAnimation();
+                }
+
+                gameTime--;
+            }
+
+            public void onFinish() {
+                System.out.println("Well you have played for a very long time");
+            }
+
         }.start();
     }
 
@@ -428,10 +484,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         return iconFactory.fromBitmap(smallMarker);
     }
 
-    private void setTitleTypeface() {
-        TextView textView = findViewById(R.id.toolbar_title);
+    private void setTypeface(TextView view) {
         Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
-        textView.setTypeface(typeface);
+        view.setTypeface(typeface);
     }
 
     @Override
@@ -611,6 +666,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                markers.remove(key);
                rTreeMarker.delete(point);
                animatePacman();
+               gameTime += 5;
            }
        }
     }
