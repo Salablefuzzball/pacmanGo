@@ -1,4 +1,4 @@
-package com.example.toukolohilahti.pacmango_native;
+package com.example.toukolohilahti.pacmango_native.util;
 
 import com.example.toukolohilahti.pacmango_native.util.HttpGetQuery;
 import com.example.toukolohilahti.pacmango_native.util.HttpPostQuery;
@@ -11,36 +11,6 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
 public class HighScores {
-
-    private class HighScoreRow {
-        public int scoreId;
-        public String player;
-        public int time;
-        public int score;
-        public int difficulty;
-        public int timestamp;
-
-        public HighScoreRow(int scoreId, String player, int time, int score, int difficulty, int timestamp) {
-            this.scoreId = scoreId;
-            this.player = player;
-            this.time = time;
-            this.score = score;
-            this.difficulty = difficulty;
-            this.timestamp = timestamp;
-        }
-
-        @Override
-        public String toString() {
-            return "HighScoreRow{" +
-                    "scoreId=" + scoreId +
-                    ", player='" + player + '\'' +
-                    ", time=" + time +
-                    ", score=" + score +
-                    ", difficulty=" + difficulty +
-                    ", timestamp=" + timestamp +
-                    '}';
-        }
-    }
 
     private String url = "http://pacmango.dy.fi:6565/highscore";
 
