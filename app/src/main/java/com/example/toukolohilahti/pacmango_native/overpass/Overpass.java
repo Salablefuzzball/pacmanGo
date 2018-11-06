@@ -3,13 +3,12 @@ package com.example.toukolohilahti.pacmango_native.overpass;
 import android.location.Location;
 import android.util.SparseArray;
 
-import com.example.toukolohilahti.pacmango_native.HttpPostQuery;
+import com.example.toukolohilahti.pacmango_native.util.HttpPostQuery;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
 public class Overpass {

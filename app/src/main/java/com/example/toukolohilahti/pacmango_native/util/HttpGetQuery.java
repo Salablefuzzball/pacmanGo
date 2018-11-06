@@ -1,21 +1,18 @@
-package com.example.toukolohilahti.pacmango_native;
+package com.example.toukolohilahti.pacmango_native.util;
 
 import android.os.AsyncTask;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-public class HttpPostQuery extends AsyncTask<String, String, JSONObject> {
+public class HttpGetQuery extends AsyncTask<String, String, JSONArray> {
 
-    public HttpPostQuery(){
+    public HttpGetQuery(){
         //set context variables if required
     }
 
@@ -25,24 +22,17 @@ public class HttpPostQuery extends AsyncTask<String, String, JSONObject> {
     }
 
     @Override
-    protected JSONObject doInBackground(String... params) {
+    protected JSONArray doInBackground(String... params) {
         String urlString = params[0]; // URL to call
-        String query = params[1];
-        OutputStream out = null;
 
         try {
             URL url = new URL(urlString);
             HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.setRequestMethod("POST");
-            out = new BufferedOutputStream(urlConnection.getOutputStream());
+            urlConnection.setRequestMethod("GET");
 
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, "UTF-8"));
-            writer.write(query);
-            writer.flush();
-            writer.close();
-            out.close();
 
             urlConnection.connect();
+            System.out.println(urlConnection.getResponseCode());
             if(urlConnection.getResponseCode() == 200) {
                 BufferedReader in = new BufferedReader(
                         new InputStreamReader(urlConnection.getInputStream()));
@@ -53,7 +43,7 @@ public class HttpPostQuery extends AsyncTask<String, String, JSONObject> {
                     response.append(inputLine);
                 }
                 in.close();
-                JSONObject jsonResponse = new JSONObject(response.toString());
+                JSONArray jsonResponse = new JSONArray(response.toString());
                 return jsonResponse;
             } else {
                 return null;
