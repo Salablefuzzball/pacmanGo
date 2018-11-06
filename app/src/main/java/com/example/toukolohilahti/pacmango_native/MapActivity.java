@@ -81,6 +81,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private Location originLocation;
     private SparseArray<MarkerOptions> markers;
     private int gameTime = 60;
+    private int points = 0;
 
     //We need two trees because when you eat pac-dots
     //markers need to be removed.
@@ -453,6 +454,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 }
 
                 gameTime--;
+                points++;
             }
 
             public void onFinish() {
