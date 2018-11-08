@@ -461,6 +461,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     public void startGame(View view) {
+        gameStarted = true;
         Button button = findViewById(R.id.startGameButton);
         Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
 
