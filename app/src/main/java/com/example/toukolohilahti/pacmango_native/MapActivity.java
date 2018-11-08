@@ -16,20 +16,21 @@ import android.location.Location;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
-import android.provider.CalendarContract;
 import android.support.annotation.NonNull;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.LinearLayout;
+import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -37,6 +38,7 @@ import android.widget.Toast;
 import com.example.toukolohilahti.pacmango_native.overpass.Overpass;
 import com.example.toukolohilahti.pacmango_native.overpass.Position;
 import com.example.toukolohilahti.pacmango_native.overpass.Road;
+import com.example.toukolohilahti.pacmango_native.util.CustomTypefaceSpan;
 import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
 import com.example.toukolohilahti.pacmango_native.util.LoopDirection;
 import com.github.davidmoten.rtree.Entry;
@@ -82,6 +84,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private SparseArray<MarkerOptions> markers;
     private int gameTime = 60;
     private int points = 0;
+    private boolean gameStarted = false;
+    private boolean gameOver = false;
+
+    private List<Runnable> ghostRunnables = new ArrayList<>();
+    private List<Handler> ghostHandlers = new ArrayList<>();
 
     //We need two trees because when you eat pac-dots
     //markers need to be removed.
@@ -96,7 +103,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     //meters
     private static final int EATING_DISTANCE = 5;
-    private static final int DEATH_RADIUS = 20;
+    private static final int DEATH_RADIUS = 15;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
     private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
             R.mipmap.pink_ghost, R.mipmap.yellow_ghost};
@@ -106,10 +113,10 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         MapActivity self = this;
         super.onCreate(savedInstanceState);
 
-        pd = new ProgressDialog(this);
-
         Mapbox.getInstance(this, getString(R.string.mapbox_access_token));
         setContentView(R.layout.activity_map);
+
+        setupProgressDialog();
 
         //Set custom toolbar
         Toolbar mTopToolbar = findViewById(R.id.toolbar_top);
@@ -137,6 +144,14 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 createMarkers();
             }
         });
+    }
+
+    private void setupProgressDialog() {
+
+        Typeface font = Typeface.createFromAsset(this.getAssets(), FONT_URL);
+        SpannableStringBuilder spannableSB = new SpannableStringBuilder(getString(R.string.loading_spinner_title));
+        spannableSB.setSpan (new CustomTypefaceSpan(FONT_URL, font), 0, spannableSB.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        pd = ProgressDialog.show(this, null, spannableSB, true, false);
     }
 
     private void createGhosts() {
@@ -169,9 +184,10 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     private void animateGhost(Marker ghost, Road currentRoad, LoopDirection drct, int indx) {
         Handler handler = new Handler();
+        ghostHandlers.add(handler);
         int delay = 1000; //milliseconds
 
-        handler.postDelayed(new Runnable(){
+        final Runnable runnable = new Runnable(){
             int index = indx;
             Road road = currentRoad;
             LatLng ghostPos = ghost.getPosition();
@@ -212,8 +228,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     markerAnimator.setDuration(3000);
                     markerAnimator.start();
 
-                    //checkIfGameOver(ghostPos);
-
                     //Loop the arrayList in the correct direction
                     if (direction.equals(LoopDirection.BACKWARD)) {
                         index--;
@@ -227,12 +241,27 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     searchCount += 15;
                 }
 
-                handler.postDelayed(this, delay);
+                if (checkIfGameOver(ghostPos)) {
+                    gameOver();
+                } else {
+                    handler.postDelayed(this, delay);
+                }
             }
-        }, delay);
+        };
+
+        ghostRunnables.add(runnable);
+        handler.postDelayed(runnable, delay);
     }
 
-    private void checkIfGameOver(LatLng loc) {
+    private void stopGhostAnimation() {
+        for (int i = 0; i<ghostHandlers.size(); i++) {
+            Handler handler = ghostHandlers.get(i);
+            Runnable runnable = ghostRunnables.get(i);
+            handler.removeCallbacks(runnable);
+        }
+    }
+
+    private boolean checkIfGameOver(LatLng loc) {
         @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
         double lat1 = userLoc.getLatitude();
         double lon1 = userLoc.getLongitude();
@@ -240,11 +269,17 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         double lon2 = loc.getLongitude();
 
         if (DEATH_RADIUS > DistanceUtil.distance(lat1, lon1, lat2, lon2)) {
-            gameOver();
+            return true;
         }
+
+        return false;
     }
 
     private void gameOver() {
+        gameOver =  true;
+
+        stopGhostAnimation();
+
         //Just show something for now.
         AlertDialog.Builder builder;
         builder = new AlertDialog.Builder(MapActivity.this, android.R.style.Theme_Material_Dialog_Alert);
@@ -376,7 +411,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             @Override
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
-                pd.setMessage(getString(R.string.generating_spinner_title));
+                //pd.setMessage(getString(R.string.generating_spinner_title));
                 Road road = msg.getData().getParcelable("road");
                 int isLast = msg.getData().getInt("last");
                 if(road != null) {
@@ -392,12 +427,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
                 if (isLast == 1) {
                     pd.dismiss();
-                    startGame();
+                    initializeStartGameButton();
                 }
             }
         };
 
-        pd.setMessage(getString(R.string.loading_spinner_title));
         pd.show();
 
         new Thread() {
@@ -417,10 +451,40 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         }.start();
     }
 
-    private void startGame() {
-        //RELEASE THEM!!!
-        createGhosts();
-        createTimer();
+    private void initializeStartGameButton() {
+        Button button = findViewById(R.id.startGameButton);
+        Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
+        button.setTypeface(typeface);
+        button.setVisibility(View.VISIBLE);
+        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadein);
+        button.setAnimation(animation);
+    }
+
+    public void startGame(View view) {
+        Button button = findViewById(R.id.startGameButton);
+        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
+
+        button.startAnimation(animation);
+        animation.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                button.setVisibility(View.GONE);
+                button.setClickable(false);
+                //RELEASE THEM!!!
+                createGhosts();
+                createTimer();
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {
+
+            }
+        });
     }
 
     private void createTimer() {
@@ -443,6 +507,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
                 if (gameTime == 0) {
                     gameOver();
+                    cancel();
+                }
+
+                if (gameOver) {
+                    cancel();
                 }
 
                 if (gameTime <= 10) {
@@ -654,21 +723,27 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      */
     @Override
     public void onLocationChanged(Location location) {
-       Entry<String, Point> point = findNearestMarker(location);
-       if (point != null) {
-           int key = point.geometry().hashCode();
-           MarkerOptions options = markers.get(key);
-           Marker marker = options.getMarker();
-           LatLng markerPos = marker.getPosition();
-           double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
+       if (gameStarted) {
+           Entry<String, Point> point = findNearestMarker(location);
+           if (point != null) {
+               int key = point.geometry().hashCode();
+               MarkerOptions options = markers.get(key);
+               //For some reason the point might not always be in the map.
+               //Very hard to debug so at least for now just make sure app does not crash.
+               if (options != null) {
+                   Marker marker = options.getMarker();
+                   LatLng markerPos = marker.getPosition();
+                   double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
 
-           //Nom Nom
-           if (distance < EATING_DISTANCE) {
-               mapboxMap.removeMarker(marker);
-               markers.remove(key);
-               rTreeMarker.delete(point);
-               animatePacman();
-               gameTime += 5;
+                   //Nom Nom
+                   if (distance < EATING_DISTANCE) {
+                       mapboxMap.removeMarker(marker);
+                       markers.remove(key);
+                       rTreeMarker.delete(point);
+                       animatePacman();
+                       gameTime += 5;
+                   }
+               }
            }
        }
     }
@@ -727,5 +802,19 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     @Override
     public void onConnected() {
 
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        }
     }
 }

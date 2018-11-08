@@ -36,7 +36,8 @@
         android:layout_marginTop="0dp"
         mapbox:mapbox_cameraTilt="30"
         mapbox:mapbox_cameraZoom="17"
-        mapbox:mapbox_styleUrl="mapbox://styles/salablefuzzball/cjo0cw51fa0m52rpepsm2teyw"></com.mapbox.mapboxsdk.maps.MapView>
+        mapbox:mapbox_styleUrl="mapbox://styles/salablefuzzball/cjo0cw51fa0m52rpepsm2teyw">
+    </com.mapbox.mapboxsdk.maps.MapView>
 
     <android.support.v7.widget.Toolbar
         android:id="@+id/toolbar_top"
@@ -61,4 +62,14 @@
         android:textColor="#ffffff"
         android:textSize="30sp"
         android:gravity="end"/>
+
+    <Button
+        android:id="@+id/startGameButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:visibility="gone"
+        android:textSize="25sp"
+        android:onClick="startGame"
+        android:text="@string/start_game" />
 </RelativeLayout>

@@ -42,5 +42,6 @@ dependencies {
     implementation 'com.android.support:multidex:1.0.3'
     implementation 'com.mapbox.mapboxsdk:mapbox-android-navigation-ui:0.21.0'
     implementation 'com.github.davidmoten:rtree:0.8.6'
+    implementation 'uk.co.chrisjenx:calligraphy:2.2.0'
 
 }

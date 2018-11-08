@@ -5,6 +5,7 @@
     <string name="user_location_permission_not_granted">You didn\'t grant location permissions.</string>
     <string name="leaderboard">Leaderboards</string>
     <string name="location">Location</string>
-    <string name="loading_spinner_title">Loading pellets...</string>
-    <string name="generating_spinner_title">Calculating pellets...</string>
+    <string name="loading_spinner_title">Loading...</string>
+    <string name="start_game">Start game</string>
+    <string name="dot">.</string>
 </resources>
