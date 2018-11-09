@@ -33,7 +33,7 @@ public class HighScores {
         return results;
     }
 
-    public int SendHighScore(String player, int time, int score, int difficulty) {
+    public void SendHighScore(String player, int time, int score, int difficulty) {
         JSONObject object = new JSONObject();
         try {
             object.put("player", player);
@@ -43,11 +43,9 @@ public class HighScores {
             new HttpPostQuery().execute(url, object.toString()).get();
         } catch (JSONException e) {
             e.printStackTrace();
-            return 1;
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         }
-        return 0;
     }
 
 }

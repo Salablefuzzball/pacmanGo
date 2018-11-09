@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:padding="10sp"
+    android:background="@color/mapbox_blue"
+    android:layout_height="fill_parent">
+
+    <TextView
+        android:id="@+id/gameOverText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerInParent="true"
+        android:textSize="30sp"
+        android:text="GAME OVER!"/>
+
+    <TextView
+        android:id="@+id/scoreText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textSize="25sp"
+        android:layout_below="@+id/gameOverText"/>
+
+
+    <Button
+        android:id="@+id/newGame"
+        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:text="New game"
+        android:layout_centerInParent="true"
+        android:layout_marginTop="5dp"
+        android:layout_marginRight="5dp"
+        android:layout_below="@+id/scoreText"
+        />
+
+    <Button
+        android:id="@+id/saveScore"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Save score"
+        android:layout_centerInParent="true"
+        android:layout_marginTop="5dp"
+        android:layout_marginRight="5dp"
+        android:layout_below="@+id/newGame"
+        />
+
+    <android.support.v7.widget.AppCompatEditText
+        android:id="@+id/username"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Username"
+        android:visibility="gone"
+        android:layout_below="@+id/saveScore"
+         />
+
+    <Button
+        android:id="@+id/submit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Submit"
+        android:layout_centerInParent="true"
+        android:visibility="gone"
+        android:layout_marginTop="5dp"
+        android:layout_marginRight="5dp"
+        android:layout_below="@+id/username"
+        />
+</RelativeLayout>

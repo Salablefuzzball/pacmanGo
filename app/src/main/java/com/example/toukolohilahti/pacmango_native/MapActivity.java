@@ -4,10 +4,9 @@ import android.animation.ObjectAnimator;
 import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -30,7 +29,9 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -40,6 +41,7 @@ import com.example.toukolohilahti.pacmango_native.overpass.Position;
 import com.example.toukolohilahti.pacmango_native.overpass.Road;
 import com.example.toukolohilahti.pacmango_native.util.CustomTypefaceSpan;
 import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
+import com.example.toukolohilahti.pacmango_native.util.HighScores;
 import com.example.toukolohilahti.pacmango_native.util.LoopDirection;
 import com.github.davidmoten.rtree.Entry;
 import com.github.davidmoten.rtree.RTree;
@@ -69,6 +71,7 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 import rx.Observable;
@@ -138,20 +141,17 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 //Consider using these, maybe more immersed gameplay?
                 //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
                 //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
-                rTreeMarker = RTree.create();
-                rTreeNavigation = RTree.create();
-                markers = new SparseArray<MarkerOptions>();
-                createMarkers();
+                newGame();
             }
         });
     }
 
     private void setupProgressDialog() {
-
         Typeface font = Typeface.createFromAsset(this.getAssets(), FONT_URL);
         SpannableStringBuilder spannableSB = new SpannableStringBuilder(getString(R.string.loading_spinner_title));
         spannableSB.setSpan (new CustomTypefaceSpan(FONT_URL, font), 0, spannableSB.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        pd = ProgressDialog.show(this, null, spannableSB, true, false);
+        pd = new ProgressDialog(this, R.style.MyTheme);
+        pd.setMessage(spannableSB);
     }
 
     private void createGhosts() {
@@ -196,7 +196,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             int searchCount = 5;
 
             public void run() {
-                //We have way too many 'Location' objects that
                 Location location = new Location("DummyProvider");
                 location.setLatitude(ghostPos.getLatitude());
                 location.setLongitude(ghostPos.getLongitude());
@@ -268,36 +267,81 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         double lat2 = loc.getLatitude();
         double lon2 = loc.getLongitude();
 
-        if (DEATH_RADIUS > DistanceUtil.distance(lat1, lon1, lat2, lon2)) {
-            return true;
-        }
+        return DEATH_RADIUS > DistanceUtil.distance(lat1, lon1, lat2, lon2);
 
-        return false;
     }
 
     private void gameOver() {
-        gameOver =  true;
+        //Make sure this is called just once
+        if (!gameOver) {
+            gameOver = true;
+            showGameOverDialog();
+            stopGhostAnimation();
+        }
+    }
 
-        stopGhostAnimation();
+    private void showGameOverDialog() {
+        final Dialog dialog = new Dialog(this);
+        dialog.setCancelable(false);
+        dialog.setContentView(R.layout.game_over_dialog);
+        TextView gameOverText = dialog.findViewById(R.id.gameOverText);
+        TextView scoreText = dialog.findViewById(R.id.scoreText);
+        Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
+        Button submit = dialog.findViewById(R.id.submit);
+        EditText username = dialog.findViewById(R.id.username);
+        username.setTypeface(typeface);
+        submit.setTypeface(typeface);
+        setTypeface(scoreText);
+        setTypeface(gameOverText);
+        scoreText.setText("You survived for " + points + " seconds");
 
-        //Just show something for now.
-        AlertDialog.Builder builder;
-        builder = new AlertDialog.Builder(MapActivity.this, android.R.style.Theme_Material_Dialog_Alert);
+        Button newGame = dialog.findViewById(R.id.newGame);
+        Button saveScore = dialog.findViewById(R.id.saveScore);
+        newGame.setTypeface(typeface);
+        saveScore.setTypeface(typeface);
 
-        builder.setTitle("YOU ARE DEAD")
-                .setMessage("DO YOU UNDERSTAND??")
-                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        // continue with delete
-                    }
-                })
-                .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        // do nothing
-                    }
-                })
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .show();
+        // if button is clicked, close the custom dialog
+        newGame.setOnClickListener(v -> {
+            dialog.dismiss();
+            newGame();
+        });
+
+        saveScore.setOnClickListener(v -> {
+            saveScore.setVisibility(View.GONE);
+            username.setVisibility(View.VISIBLE);
+            submit.setVisibility(View.VISIBLE);
+
+            submit.setOnClickListener(view -> {
+                String usernameText = username.getText().toString();
+
+                if (!usernameText.isEmpty()) {
+                    submitScore(username.getText().toString(), points);
+                    username.setVisibility(View.GONE);
+                    submit.setVisibility(View.GONE);
+                }
+            });
+        });
+
+        dialog.show();
+    }
+
+    private void submitScore(String username, int points) {
+        HighScores highScores =  new HighScores();
+        //thread is not runable, msg ignore, state:WAITING
+        //highScores.SendHighScore(username, points, points, 1);
+    }
+
+    private void newGame() {
+        mapboxMap.clear();
+        gameOver = false;
+        gameTime = 60;
+        points = 0;
+        rTreeMarker = RTree.create();
+        rTreeNavigation = RTree.create();
+        markers = new SparseArray<MarkerOptions>();
+        Button button = findViewById(R.id.startGameButton);
+        button.setClickable(true);
+        createMarkers();
     }
 
     /**
@@ -411,7 +455,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             @Override
             public void handleMessage(Message msg) {
                 super.handleMessage(msg);
-                //pd.setMessage(getString(R.string.generating_spinner_title));
                 Road road = msg.getData().getParcelable("road");
                 int isLast = msg.getData().getInt("last");
                 if(road != null) {
@@ -464,7 +507,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         gameStarted = true;
         Button button = findViewById(R.id.startGameButton);
         Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
-
         button.startAnimation(animation);
         animation.setAnimationListener(new Animation.AnimationListener() {
             @Override
@@ -528,7 +570,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             }
 
             public void onFinish() {
-                System.out.println("Well you have played for a very long time");
+                System.out.println("Maybe you should get a life?");
             }
 
         }.start();

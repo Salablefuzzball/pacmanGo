@@ -31,4 +31,10 @@
         <item name="android:textColorPrimary">@color/md_grey_500</item>
         <item name="android:background">@color/md_grey_200</item>
     </style>
+
+    <style name="MyTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:background">@color/mapbox_blue</item>
+        <item name="android:textColor">@color/titleColor</item>
+        <item name="colorAccent">@color/titleColor</item>
+    </style>
 </resources>
