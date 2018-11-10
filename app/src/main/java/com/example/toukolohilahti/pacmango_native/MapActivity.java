@@ -21,15 +21,12 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
-import android.text.SpannableStringBuilder;
-import android.text.Spanned;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.RelativeLayout;
@@ -39,7 +36,6 @@ import android.widget.Toast;
 import com.example.toukolohilahti.pacmango_native.overpass.Overpass;
 import com.example.toukolohilahti.pacmango_native.overpass.Position;
 import com.example.toukolohilahti.pacmango_native.overpass.Road;
-import com.example.toukolohilahti.pacmango_native.util.CustomTypefaceSpan;
 import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
 import com.example.toukolohilahti.pacmango_native.util.HighScores;
 import com.example.toukolohilahti.pacmango_native.util.LoopDirection;
@@ -63,7 +59,6 @@ import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerOptions;
 import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
@@ -71,13 +66,13 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 import rx.Observable;
 
 public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener {
 
+    //Map variables
     private MapView mapView;
     private MapboxMap mapboxMap;
     private PermissionsManager permissionsManager;
@@ -85,26 +80,26 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private LocationEngine locationEngine;
     private Location originLocation;
     private SparseArray<MarkerOptions> markers;
+
+    //Game state variables
     private int gameTime = 60;
     private int points = 0;
     private boolean gameStarted = false;
     private boolean gameOver = false;
 
+    //So we can end the threads
     private List<Runnable> ghostRunnables = new ArrayList<>();
     private List<Handler> ghostHandlers = new ArrayList<>();
 
-    //We need two trees because when you eat pac-dots
-    //markers need to be removed.
+    //We need two trees because when you eat pac-dots markers need to be removed.
     private RTree<String, Point> rTreeMarker;
     //Navigation tree that will be preserved. Not optimal, try to just use one tree.
     private RTree<String, Point> rTreeNavigation;
-
     //Key is road.HashCode and the RTree has it as value for position.
     private SparseArray<Road> roadMap;
 
     ProgressDialog pd;
 
-    //meters
     private static final int EATING_DISTANCE = 5;
     private static final int DEATH_RADIUS = 15;
     private static final String FONT_URL = "fonts/ARCADE.ttf";
@@ -125,33 +120,24 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         Toolbar mTopToolbar = findViewById(R.id.toolbar_top);
         setSupportActionBar(mTopToolbar);
 
-        //Set custom Arcade font
-        TextView title = findViewById(R.id.toolbar_title);
-        setTypeface(title);
-
         mapView = findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
 
-        mapView.getMapAsync(new OnMapReadyCallback() {
-            @Override
-            public void onMapReady(MapboxMap mapboxMap) {
-                self.mapboxMap = mapboxMap;
-                hideMapboxAttributes();
-                enableLocationPlugin();
-                //Consider using these, maybe more immersed gameplay?
-                //mapboxMap.getUiSettings().setZoomControlsEnabled(false);
-                //mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
-                newGame();
-            }
+        mapView.getMapAsync(mapboxMap -> {
+            self.mapboxMap = mapboxMap;
+            hideMapboxAttributes();
+            enableLocationPlugin();
+            mapboxMap.getUiSettings().setZoomControlsEnabled(false);
+            mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
+            newGame();
         });
     }
 
     private void setupProgressDialog() {
-        Typeface font = Typeface.createFromAsset(this.getAssets(), FONT_URL);
-        SpannableStringBuilder spannableSB = new SpannableStringBuilder(getString(R.string.loading_spinner_title));
-        spannableSB.setSpan (new CustomTypefaceSpan(FONT_URL, font), 0, spannableSB.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         pd = new ProgressDialog(this, R.style.MyTheme);
-        pd.setMessage(spannableSB);
+        pd.setCancelable(false);
+        String loadMessage = getString(R.string.loading_spinner_title);
+        pd.setMessage(loadMessage);
     }
 
     private void createGhosts() {
@@ -184,9 +170,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     private void animateGhost(Marker ghost, Road currentRoad, LoopDirection drct, int indx) {
         Handler handler = new Handler();
+
         ghostHandlers.add(handler);
         int delay = 1000; //milliseconds
-
         final Runnable runnable = new Runnable(){
             int index = indx;
             Road road = currentRoad;
@@ -194,6 +180,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             LoopDirection direction = drct;
             int searchDist = 75;
             int searchCount = 5;
+            ArrayList<Entry<String, Point>> prevMarkers = new ArrayList<>();
+            int prevMarkerIndex = 0;
 
             public void run() {
                 Location location = new Location("DummyProvider");
@@ -201,7 +189,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 location.setLongitude(ghostPos.getLongitude());
 
                 Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, searchDist, searchCount);
-                Entry<String, Point> roadMarker = findNearestRoadToUser(nearestMarkers, currentRoad);
+                Iterable<Entry<String, Point>> filteredMarkers  = filterNearestMarkers(nearestMarkers, prevMarkers);
+                Entry<String, Point> roadMarker = findNearestRoadToUser(filteredMarkers, currentRoad);
 
                 if (roadMarker != null) {
                     Road newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
@@ -218,6 +207,14 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 if ((direction.equals(LoopDirection.BACKWARD) && index >= 0) || (direction.equals(LoopDirection.FORWARD) && road.geometry.size() > index)) {
                     searchDist = 75;
                     searchCount = 5;
+
+                    prevMarkers.add(prevMarkerIndex, roadMarker);
+
+                    if (prevMarkerIndex == 9) {
+                        prevMarkerIndex = 0;
+                    } else {
+                        prevMarkerIndex++;
+                    }
 
                     Position loc = road.geometry.get(index);
                     ghostPos = new LatLng(loc.lat, loc.lon);
@@ -250,6 +247,17 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         ghostRunnables.add(runnable);
         handler.postDelayed(runnable, delay);
+    }
+
+    private Iterable<Entry<String, Point>> filterNearestMarkers(Iterable<Entry<String, Point>> nearestMarkers, ArrayList<Entry<String, Point>> prevMarkers) {
+        ArrayList<Entry<String, Point>> filteredMarkers = new ArrayList<>();
+        for (Entry<String, Point> marker: nearestMarkers) {
+            if (!prevMarkers.contains(marker)) {
+                filteredMarkers.add(marker);
+            }
+        }
+
+        return filteredMarkers;
     }
 
     private void stopGhostAnimation() {
@@ -291,8 +299,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         EditText username = dialog.findViewById(R.id.username);
         username.setTypeface(typeface);
         submit.setTypeface(typeface);
-        setTypeface(scoreText);
-        setTypeface(gameOverText);
         scoreText.setText("You survived for " + points + " seconds");
 
         Button newGame = dialog.findViewById(R.id.newGame);
@@ -496,8 +502,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     private void initializeStartGameButton() {
         Button button = findViewById(R.id.startGameButton);
-        Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
-        button.setTypeface(typeface);
         button.setVisibility(View.VISIBLE);
         Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadein);
         button.setAnimation(animation);
@@ -538,7 +542,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         params.setMargins(0,10 + barHeight,10,0);
         params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
         timer.setLayoutParams(params);
-        setTypeface(timer);
 
         Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.blink);
 
@@ -596,11 +599,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         Bitmap smallMarker = Bitmap.createScaledBitmap(b, 30, 30, false);
 
         return iconFactory.fromBitmap(smallMarker);
-    }
-
-    private void setTypeface(TextView view) {
-        Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
-        view.setTypeface(typeface);
     }
 
     @Override
