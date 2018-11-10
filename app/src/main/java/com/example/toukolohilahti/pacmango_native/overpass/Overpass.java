@@ -37,8 +37,7 @@ public class Overpass {
         double south = LAT - RADIUS/LAT_IN_KM;
         double west = LON - RADIUS/LON_IN_KM*Math.cos(LAT);
 
-        Area area = new Area(north, east, south, west);
-        return area;
+        return new Area(north, east, south, west);
     }
 
     /**

@@ -1,8 +1,5 @@
 package com.example.toukolohilahti.pacmango_native;
 
-import android.animation.ObjectAnimator;
-import android.animation.TypeEvaluator;
-import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.app.ProgressDialog;
@@ -10,7 +7,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.location.Location;
 import android.os.CountDownTimer;
 import android.os.Handler;
@@ -64,45 +60,29 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
 import rx.Observable;
+import timber.log.Timber;
 
-public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener {
+public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener, GameOverListener {
 
-    //Map variables
     private MapView mapView;
     private MapboxMap mapboxMap;
     private PermissionsManager permissionsManager;
     private LocationLayerPlugin locationLayerPlugin;
     private LocationEngine locationEngine;
-    private Location originLocation;
     private SparseArray<MarkerOptions> markers;
-
-    //Game state variables
-    private int gameTime = 60;
-    private int points = 0;
-    private boolean gameStarted = false;
-    private boolean gameOver = false;
-
-    //So we can end the threads
-    private List<Runnable> ghostRunnables = new ArrayList<>();
-    private List<Handler> ghostHandlers = new ArrayList<>();
-
-    //We need two trees because when you eat pac-dots markers need to be removed.
-    private RTree<String, Point> rTreeMarker;
-    //Navigation tree that will be preserved. Not optimal, try to just use one tree.
-    private RTree<String, Point> rTreeNavigation;
-    //Key is road.HashCode and the RTree has it as value for position.
-    private SparseArray<Road> roadMap;
 
     ProgressDialog pd;
 
+    AnimationHandler animationHandler;
+    GameDataHandler gameDataHandler;
+    GameStateHandler gameStateHandler;
+
     private static final int EATING_DISTANCE = 5;
-    private static final int DEATH_RADIUS = 15;
-    private static final String FONT_URL = "fonts/ARCADE.ttf";
     private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
             R.mipmap.pink_ghost, R.mipmap.yellow_ghost};
 
@@ -115,10 +95,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         setContentView(R.layout.activity_map);
 
         setupProgressDialog();
-
-        //Set custom toolbar
-        Toolbar mTopToolbar = findViewById(R.id.toolbar_top);
-        setSupportActionBar(mTopToolbar);
+        setCustomToolbar();
 
         mapView = findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
@@ -126,11 +103,25 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         mapView.getMapAsync(mapboxMap -> {
             self.mapboxMap = mapboxMap;
             hideMapboxAttributes();
+            disableControls();
             enableLocationPlugin();
-            mapboxMap.getUiSettings().setZoomControlsEnabled(false);
-            mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
-            newGame();
         });
+    }
+
+    private void disableControls() {
+        mapboxMap.getUiSettings().setZoomControlsEnabled(false);
+        mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
+    }
+
+    public MapActivity() {
+        this.gameDataHandler = new GameDataHandler();
+        this.animationHandler = new AnimationHandler(this.gameDataHandler, this);
+        this.gameStateHandler = new GameStateHandler();
+    }
+
+    private void setCustomToolbar() {
+        Toolbar mTopToolbar = findViewById(R.id.toolbar_top);
+        setSupportActionBar(mTopToolbar);
     }
 
     private void setupProgressDialog() {
@@ -146,170 +137,151 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         }
     }
 
+    /**
+     * Create ghost in to a random location and start animating it.
+     *
+     * @param ghost
+     */
     private void createGhost(int ghost) {
-        //Add it to a random location
+        SparseArray<Road> roadMap = gameDataHandler.getRoadMap();
         int randomRoad = ThreadLocalRandom.current().nextInt(0, roadMap.size());
         Road road = roadMap.valueAt(randomRoad);
         int randomRoadSection = ThreadLocalRandom.current().nextInt(0, road.geometry.size());
         Position loc = road.geometry.get(randomRoadSection);
 
-        LoopDirection direction = findDirection(road.geometry, randomRoadSection);
+        LoopDirection direction = animationHandler.findDirection(road.geometry, randomRoadSection);
 
-        MarkerOptions options = new MarkerOptions();
-        LatLng pos = new LatLng();
-        pos.setLatitude(loc.lat);
-        pos.setLongitude(loc.lon);
-        options.setPosition(pos);
-        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
-        Icon icon = iconFactory.fromResource(ghost);
-        options.setIcon(icon);
-        Marker ghostMarker = mapboxMap.addMarker(options);
+        Marker ghostMarker = createGhostMarker(ghost, loc);
 
-        animateGhost(ghostMarker, road, direction, randomRoadSection);
+        animationHandler.animate(ghostMarker, road, direction, randomRoadSection);
     }
 
-    private void animateGhost(Marker ghost, Road currentRoad, LoopDirection drct, int indx) {
-        Handler handler = new Handler();
+    private void initializeStartGameButton() {
+        Button button = findViewById(R.id.startGameButton);
+        button.setVisibility(View.VISIBLE);
 
-        ghostHandlers.add(handler);
-        int delay = 1000; //milliseconds
-        final Runnable runnable = new Runnable(){
-            int index = indx;
-            Road road = currentRoad;
-            LatLng ghostPos = ghost.getPosition();
-            LoopDirection direction = drct;
-            int searchDist = 75;
-            int searchCount = 5;
-            ArrayList<Entry<String, Point>> prevMarkers = new ArrayList<>();
-            int prevMarkerIndex = 0;
+        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadein);
+        button.setAnimation(animation);
+    }
 
-            public void run() {
-                Location location = new Location("DummyProvider");
-                location.setLatitude(ghostPos.getLatitude());
-                location.setLongitude(ghostPos.getLongitude());
+    //TODO: fix highscores
+    private void submitScore(String username, int points) {
+        HighScores highScores =  new HighScores();
+        //thread is not runable, msg ignore, state:WAITING
+        //highScores.SendHighScore(username, points, points, 1);
+    }
 
-                Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, searchDist, searchCount);
-                Iterable<Entry<String, Point>> filteredMarkers  = filterNearestMarkers(nearestMarkers, prevMarkers);
-                Entry<String, Point> roadMarker = findNearestRoadToUser(filteredMarkers, currentRoad);
+    /**
+     * Init data structures again. Clear map from pac-dots and ghosts.
+     */
+    private void startGame() {
+        mapboxMap.clear();
+        gameStateHandler.newGame();
+        gameDataHandler.createRTrees();
+        markers = new SparseArray<MarkerOptions>();
+        Button button = findViewById(R.id.startGameButton);
+        button.setClickable(true);
+        createMarkers();
+    }
 
-                if (roadMarker != null) {
-                    Road newRoad = roadMap.get(Integer.parseInt(roadMarker.value()));
+    /**
+     * Hides MapBox Logo and Info button.
+     * IF PUBLISHED DO NOT HIDE
+     */
+    private void hideMapboxAttributes() {
+        mapboxMap.getUiSettings().setAttributionEnabled(false);
+        mapboxMap.getUiSettings().setLogoEnabled(false);
+    }
 
-                    //If it is a new road then calculate new index and direction
-                    if (!newRoad.equals(road)) {
-                        road = newRoad;
-                        index = getIndexFromRoad(roadMarker);
-                        direction = findDirection(road.geometry, index);
+    private void createMarkers() {
+        Handler handler = processRoadData();
+        queryRoadDataInThread(handler);
+    }
+
+    @SuppressLint("HandlerLeak")
+    private Handler processRoadData() {
+        return new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
+                Road road = msg.getData().getParcelable("road");
+                int isLast = msg.getData().getInt("last");
+                if(road != null) {
+                    for (Position loc : road.geometry) {
+                        MarkerOptions options = createMarkerOptions(loc);
+                        mapboxMap.addMarker(options);
+                        Point point = Geometries.point(loc.lat, loc.lon);
+                        gameDataHandler.addValueToTrees(road, point);
+                        markers.put(point.hashCode(), options);
                     }
                 }
 
-                //Lets make sure our app does not crash
-                if ((direction.equals(LoopDirection.BACKWARD) && index >= 0) || (direction.equals(LoopDirection.FORWARD) && road.geometry.size() > index)) {
-                    searchDist = 75;
-                    searchCount = 5;
-
-                    prevMarkers.add(prevMarkerIndex, roadMarker);
-
-                    if (prevMarkerIndex == 9) {
-                        prevMarkerIndex = 0;
-                    } else {
-                        prevMarkerIndex++;
-                    }
-
-                    Position loc = road.geometry.get(index);
-                    ghostPos = new LatLng(loc.lat, loc.lon);
-
-                    ValueAnimator markerAnimator = ObjectAnimator.ofObject(ghost, "position",
-                            new LatLngEvaluator(), ghost.getPosition(), ghostPos);
-                    markerAnimator.setDuration(3000);
-                    markerAnimator.start();
-
-                    //Loop the arrayList in the correct direction
-                    if (direction.equals(LoopDirection.BACKWARD)) {
-                        index--;
-                    } else {
-                        index++;
-                    }
-                } else {
-                    //Cheap tricks to prevent ghosts getting stuck.
-                    System.out.println("Stuck");
-                    searchDist += 125;
-                    searchCount += 15;
-                }
-
-                if (checkIfGameOver(ghostPos)) {
-                    gameOver();
-                } else {
-                    handler.postDelayed(this, delay);
+                if (isLast == 1) {
+                    pd.dismiss();
+                    initializeStartGameButton();
                 }
             }
         };
-
-        ghostRunnables.add(runnable);
-        handler.postDelayed(runnable, delay);
     }
 
-    private Iterable<Entry<String, Point>> filterNearestMarkers(Iterable<Entry<String, Point>> nearestMarkers, ArrayList<Entry<String, Point>> prevMarkers) {
-        ArrayList<Entry<String, Point>> filteredMarkers = new ArrayList<>();
-        for (Entry<String, Point> marker: nearestMarkers) {
-            if (!prevMarkers.contains(marker)) {
-                filteredMarkers.add(marker);
+    /**
+     * Query road data in separate thead so UI thread does not get overloaded.
+     *
+     * @param handler Where markers will be added to the map.
+     */
+    private void queryRoadDataInThread(Handler handler) {
+        pd.show();
+        new Thread() {
+            public void run() {
+                Overpass pass = new Overpass();
+                Location location = getUserLocation();
+                SparseArray<Road> roadMap = pass.getRoads(location);
+                gameDataHandler.setRoadMap(roadMap);
+                for (int index = 0; index < roadMap.size(); index++) {
+                    Message msg = createMessage(roadMap, index);
+                    handler.sendMessage(msg);
+                }
             }
+        }.start();
+    }
+
+    /**
+     * Query location few times because sometimes
+     * it does not update the location correctly.
+     * This might not fix that but who knows.
+     *
+     * @return Hopefully correct location.
+     */
+    @SuppressLint("MissingPermission")
+    private Location getUserLocation() {
+        Location location = null;
+        for(int i = 0; i<5; i++) {
+            location = locationEngine.getLastLocation();
         }
-
-        return filteredMarkers;
-    }
-
-    private void stopGhostAnimation() {
-        for (int i = 0; i<ghostHandlers.size(); i++) {
-            Handler handler = ghostHandlers.get(i);
-            Runnable runnable = ghostRunnables.get(i);
-            handler.removeCallbacks(runnable);
-        }
-    }
-
-    private boolean checkIfGameOver(LatLng loc) {
-        @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
-        double lat1 = userLoc.getLatitude();
-        double lon1 = userLoc.getLongitude();
-        double lat2 = loc.getLatitude();
-        double lon2 = loc.getLongitude();
-
-        return DEATH_RADIUS > DistanceUtil.distance(lat1, lon1, lat2, lon2);
+        return location;
 
     }
 
-    private void gameOver() {
-        //Make sure this is called just once
-        if (!gameOver) {
-            gameOver = true;
-            showGameOverDialog();
-            stopGhostAnimation();
-        }
-    }
-
+    @SuppressLint("SetTextI18n")
     private void showGameOverDialog() {
+        int points = gameStateHandler.getPoints();
+        String surviveText = getString(R.string.survive);
+        String secondsText = getString(R.string.seconds);
         final Dialog dialog = new Dialog(this);
         dialog.setCancelable(false);
         dialog.setContentView(R.layout.game_over_dialog);
-        TextView gameOverText = dialog.findViewById(R.id.gameOverText);
         TextView scoreText = dialog.findViewById(R.id.scoreText);
-        Typeface typeface = Typeface.createFromAsset(getAssets(), FONT_URL);
         Button submit = dialog.findViewById(R.id.submit);
         EditText username = dialog.findViewById(R.id.username);
-        username.setTypeface(typeface);
-        submit.setTypeface(typeface);
-        scoreText.setText("You survived for " + points + " seconds");
+        scoreText.setText(surviveText + points + secondsText);
 
         Button newGame = dialog.findViewById(R.id.newGame);
         Button saveScore = dialog.findViewById(R.id.saveScore);
-        newGame.setTypeface(typeface);
-        saveScore.setTypeface(typeface);
 
         // if button is clicked, close the custom dialog
         newGame.setOnClickListener(v -> {
             dialog.dismiss();
-            newGame();
+            startGame();
         });
 
         saveScore.setOnClickListener(v -> {
@@ -331,184 +303,130 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         dialog.show();
     }
 
-    private void submitScore(String username, int points) {
-        HighScores highScores =  new HighScores();
-        //thread is not runable, msg ignore, state:WAITING
-        //highScores.SendHighScore(username, points, points, 1);
-    }
+    private void createTimer() {
+        Toolbar bar = findViewById(R.id.toolbar_top);
+        int barHeight = bar.getHeight();
+        TextView timer = findViewById(R.id.timeScore);
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0,10 + barHeight,10,0);
+        params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+        timer.setLayoutParams(params);
+        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.blink);
 
-    private void newGame() {
-        mapboxMap.clear();
-        gameOver = false;
-        gameTime = 60;
-        points = 0;
-        rTreeMarker = RTree.create();
-        rTreeNavigation = RTree.create();
-        markers = new SparseArray<MarkerOptions>();
-        Button button = findViewById(R.id.startGameButton);
-        button.setClickable(true);
-        createMarkers();
-    }
+        //Could use some other method here but Long.MAX_VALUE is pretty damn long.
+        new CountDownTimer(Long.MAX_VALUE, 1000) {
 
-    /**
-     * When we turn to new road find out where that is in the list.
-     * @param marker The point we go next.
-     * @return Index to find correct position in the list.
-     */
-    private int getIndexFromRoad(Entry<String, Point> marker) {
-        Road road = roadMap.get(Integer.parseInt(marker.value()));
-        Point point = marker.geometry();
+            public void onTick(long millisUntilFinished) {
+                timer.setText(String.valueOf(gameStateHandler.getGameTime()));
 
-        int index = 0;
-        for(Position pos: road.geometry) {
-            if (pos.lat == point.x() && pos.lon == point.y()) {
-                return index;
-            }
-            index++;
-        }
-
-        return 0;
-
-    }
-
-    /**
-     * Find in which direction the ghost must start moving. Refactor.
-     *
-     * @param roadMarkers points on road.
-     * @param index nearest markers index.
-     * @return the direction where to loop.
-     */
-    private LoopDirection findDirection(ArrayList<Position> roadMarkers, int index) {
-        @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
-
-        double userLat = userLoc.getLatitude();
-        double userLon = userLoc.getLongitude();
-
-        if (index != 0) {
-            Position start = roadMarkers.get(index);
-            Position end = roadMarkers.get(index - 1);
-            if (DistanceUtil.distance(userLat, userLon, start.lat, start.lon) > DistanceUtil.distance(userLat, userLon, end.lat, end.lon)) {
-                return LoopDirection.BACKWARD;
-            } else {
-                return LoopDirection.FORWARD;
-            }
-        } else {
-            Position start = roadMarkers.get(index);
-            Position end = roadMarkers.get(index + 1);
-            if (DistanceUtil.distance(userLat, userLon, start.lat, start.lon) > DistanceUtil.distance(userLat, userLon, end.lat, end.lon)) {
-                return LoopDirection.FORWARD;
-            } else {
-                return LoopDirection.BACKWARD;
-            }
-        }
-
-    }
-
-    /**
-     * Find which road is nearest to the user based on the markers found near.
-     * Prioritize new roads so does not get stuck so easily. Use same road if no options.
-     * Clean up this also.
-     * @param markers nearest markers to the user.
-     * @return RTree node which contains roads key so we find it from the Map.
-     */
-    private Entry<String, Point> findNearestRoadToUser(Iterable<Entry<String, Point>> markers, Road currentRoad) {
-        @SuppressLint("MissingPermission") Location userLoc = locationEngine.getLastLocation();
-        double userLat = userLoc.getLatitude();
-        double userLon = userLoc.getLongitude();
-        double minDist = 0.0;
-        boolean initialized = false;
-        Entry<String, Point> nearestRoadMarker = null;
-        Entry<String, Point> backupMarker = null;
-
-        for(Entry<String, Point> marker: markers) {
-            double markerLat = marker.geometry().x();
-            double markerLon = marker.geometry().y();
-            double dist = DistanceUtil.distance(userLat, userLon, markerLat, markerLon);
-            Road road = roadMap.get(Integer.parseInt(marker.value()));
-            backupMarker = marker;
-
-            if (!currentRoad.equals(road)) {
-                if (initialized && dist < minDist) {
-                    minDist = dist;
-                    nearestRoadMarker = marker;
-                } else if (!initialized){
-                    minDist = dist;
-                    nearestRoadMarker = marker;
-                    initialized = true;
-                }
-            }
-        }
-
-        if (nearestRoadMarker == null) {
-            System.out.println("No new roads found");
-            return backupMarker;
-        }
-
-        return nearestRoadMarker;
-    }
-
-
-
-    private void hideMapboxAttributes() {
-        mapboxMap.getUiSettings().setAttributionEnabled(false);
-        mapboxMap.getUiSettings().setLogoEnabled(false);
-    }
-
-    private void createMarkers() {
-        @SuppressLint("HandlerLeak")
-        final Handler handler = new Handler() {
-
-            @Override
-            public void handleMessage(Message msg) {
-                super.handleMessage(msg);
-                Road road = msg.getData().getParcelable("road");
-                int isLast = msg.getData().getInt("last");
-                if(road != null) {
-                    for (Position loc : road.geometry) {
-                        MarkerOptions options = createMarkerOptions(loc);
-                        mapboxMap.addMarker(options);
-                        Point point = Geometries.point(loc.lat, loc.lon);
-                        rTreeMarker = rTreeMarker.add(Integer.toString(road.hashCode()), point);
-                        rTreeNavigation = rTreeNavigation.add(Integer.toString(road.hashCode()), point);
-                        markers.put(point.hashCode(), options);
-                    }
+                if (gameStateHandler.getGameTime() == 0) {
+                    gameOver();
+                    cancel();
                 }
 
-                if (isLast == 1) {
-                    pd.dismiss();
-                    initializeStartGameButton();
+                if (gameStateHandler.isGameOver()) {
+                    cancel();
                 }
-            }
-        };
 
-        pd.show();
-
-        new Thread() {
-            public void run() {
-                Overpass pass = new Overpass();
-                roadMap = pass.getRoads(originLocation);
-                for (int index = 0; index < roadMap.size(); index++) {
-                    Message msg = new Message();
-                    Bundle bundle = new Bundle();
-                    bundle.putParcelable("road", roadMap.valueAt(index));
-                    int isLast = index == roadMap.size()-1 ? 1 : 0;
-                    bundle.putInt("last", isLast);
-                    msg.setData(bundle);
-                    handler.sendMessage(msg);
+                if (gameStateHandler.getGameTime() <= 10) {
+                    timer.setAnimation(animation);
+                    timer.setTextColor(Color.RED);
+                } else {
+                    timer.setTextColor(Color.WHITE);
+                    timer.clearAnimation();
                 }
+
+                gameStateHandler.reduceGameTime(1);
+                gameStateHandler.addPoints();
             }
+
+            public void onFinish() {
+                Timber.i("Maybe you should get a life?");
+            }
+
         }.start();
     }
 
-    private void initializeStartGameButton() {
-        Button button = findViewById(R.id.startGameButton);
-        button.setVisibility(View.VISIBLE);
-        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadein);
-        button.setAnimation(animation);
+    @SuppressWarnings({"MissingPermission"})
+    private void enableLocationPlugin() {
+        // Check if permissions are enabled and if not request
+        if (PermissionsManager.areLocationPermissionsGranted(this)) {
+            CompletableFuture<Void> future = initializeLocationEngine();
+            // Create an instance of the plugin. Adding in LocationLayerOptions is also an optional
+            // parameter
+            locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
+
+            // Set plugin settings
+            locationLayerPlugin.setRenderMode(RenderMode.GPS);
+            locationLayerPlugin.setCameraMode(CameraMode.TRACKING_GPS);
+            pacmanOpenMouth();
+
+            getLifecycle().addObserver(locationLayerPlugin);
+
+            //Make sure locationEngine is initialized before doing anything
+            future.thenRun(this::startGame);
+        } else {
+            permissionsManager = new PermissionsManager(this);
+            permissionsManager.requestLocationPermissions(this);
+        }
+    }
+
+    @SuppressWarnings( {"MissingPermission"})
+    private CompletableFuture<Void> initializeLocationEngine() {
+        MapActivity context = this;
+        return CompletableFuture.supplyAsync(() -> {
+            LocationEngineProvider locationEngineProvider = new LocationEngineProvider(context);
+            locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
+            locationEngine.setPriority(LocationEnginePriority.HIGH_ACCURACY);
+            locationEngine.addLocationEngineListener(context);
+            locationEngine.requestLocationUpdates();
+            locationEngine.activate();
+            animationHandler.setLocationEngine(locationEngine);
+
+            return null;
+        });
+    }
+
+    @SuppressWarnings({"MissingPermission"})
+    private void animateCameraToMyLocation() {
+        Location myLoc = locationEngine.getLastLocation();
+
+        if (myLoc != null) {
+            CameraPosition position = new CameraPosition.Builder()
+                    .target(new LatLng(myLoc.getLatitude(), myLoc.getLongitude())) // Sets the new camera position
+                    .zoom(17) // Sets the zoom
+                    .tilt(30) // Set the camera tilt
+                    .build(); // Creates a CameraPosition from the builder
+
+            mapboxMap.animateCamera(CameraUpdateFactory
+                    .newCameraPosition(position), 500);
+        }
+    }
+
+    /**
+     * Open and close pacmans mouth by changing the drawable.
+     */
+    private void animatePacman() {
+        pacmanCloseMouth();
+        final Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                pacmanOpenMouth();
+            }
+        }, 1000);
+    }
+
+    private void pacmanOpenMouth() {
+        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
+    }
+
+    private void pacmanCloseMouth() {
+        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
     }
 
     public void startGame(View view) {
-        gameStarted = true;
+        gameStateHandler.startGame();
         Button button = findViewById(R.id.startGameButton);
         Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
         button.startAnimation(animation);
@@ -534,49 +452,27 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         });
     }
 
-    private void createTimer() {
-        Toolbar bar = findViewById(R.id.toolbar_top);
-        int barHeight = bar.getHeight();
-        TextView timer = findViewById(R.id.timeScore);
-        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0,10 + barHeight,10,0);
-        params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-        timer.setLayoutParams(params);
+    private Marker createGhostMarker(int ghost, Position loc) {
+        MarkerOptions options = new MarkerOptions();
+        LatLng pos = new LatLng();
+        pos.setLatitude(loc.lat);
+        pos.setLongitude(loc.lon);
+        options.setPosition(pos);
+        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+        Icon icon = iconFactory.fromResource(ghost);
+        options.setIcon(icon);
+        return mapboxMap.addMarker(options);
+    }
 
-        Animation animation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.blink);
+    private Message createMessage(SparseArray<Road> roadMap, int index) {
+        Message msg = new Message();
+        Bundle bundle = new Bundle();
+        bundle.putParcelable("road", roadMap.valueAt(index));
+        int isLast = index == roadMap.size()-1 ? 1 : 0;
+        bundle.putInt("last", isLast);
+        msg.setData(bundle);
 
-        //Could use some other method here but Long.MAX_VALUE is pretty damn long.
-        new CountDownTimer(Long.MAX_VALUE, 1000) {
-
-            public void onTick(long millisUntilFinished) {
-                timer.setText(String.valueOf(gameTime));
-
-                if (gameTime == 0) {
-                    gameOver();
-                    cancel();
-                }
-
-                if (gameOver) {
-                    cancel();
-                }
-
-                if (gameTime <= 10) {
-                    timer.setAnimation(animation);
-                    timer.setTextColor(Color.RED);
-                } else {
-                    timer.setTextColor(Color.WHITE);
-                    timer.clearAnimation();
-                }
-
-                gameTime--;
-                points++;
-            }
-
-            public void onFinish() {
-                System.out.println("Maybe you should get a life?");
-            }
-
-        }.start();
+        return msg;
     }
 
     private MarkerOptions createMarkerOptions(Position loc) {
@@ -592,6 +488,21 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
 
+    /**
+     * Find nearest marker from RTree and get it from the observable.
+     * If observable is empty just return null.
+     *
+     * @param loc User location
+     * @return Marker to be removed.
+     */
+    private Entry<String, Point> findNearestMarker(Location loc) {
+        RTree<String, Point> tree = gameDataHandler.getMarkerTree();
+        Observable<Entry<String, Point>> entries = tree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
+
+        //Well this is certainly is not clean. I dont like throwing null checks everywhere
+        //But it is nice that it works.. clean later on.
+        return entries.toBlocking().firstOrDefault(null);
+    }
 
     private Icon getScaledIconFromResource() {
         IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
@@ -625,61 +536,15 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         return super.onOptionsItemSelected(item);
     }
 
-
-    @SuppressWarnings({"MissingPermission"})
-    private void animateCameraToMyLocation() {
-        Location myLoc = locationEngine.getLastLocation();
-
-        if (myLoc != null) {
-            CameraPosition position = new CameraPosition.Builder()
-                    .target(new LatLng(myLoc.getLatitude(), myLoc.getLongitude())) // Sets the new camera position
-                    .zoom(17) // Sets the zoom
-                    .tilt(30) // Set the camera tilt
-                    .build(); // Creates a CameraPosition from the builder
-
-            mapboxMap.animateCamera(CameraUpdateFactory
-                    .newCameraPosition(position), 500);
+    @Override
+    public void gameOver() {
+        boolean gameOver = gameStateHandler.isGameOver();
+        if (!gameOver) {
+            gameStateHandler.setGameOver(true);
+            animationHandler.stopGhostAnimation();
+            showGameOverDialog();
         }
     }
-
-
-    @SuppressWarnings({"MissingPermission"})
-    private void enableLocationPlugin() {
-        // Check if permissions are enabled and if not request
-        if (PermissionsManager.areLocationPermissionsGranted(this)) {
-            initializeLocationEngine();
-            // Create an instance of the plugin. Adding in LocationLayerOptions is also an optional
-            // parameter
-            locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
-
-            // Set plugin settings
-            locationLayerPlugin.setRenderMode(RenderMode.GPS);
-            locationLayerPlugin.setCameraMode(CameraMode.TRACKING_GPS);
-            pacmanOpenMouth();
-
-            getLifecycle().addObserver(locationLayerPlugin);
-
-        } else {
-            permissionsManager = new PermissionsManager(this);
-            permissionsManager.requestLocationPermissions(this);
-        }
-    }
-
-    @SuppressWarnings( {"MissingPermission"})
-    private void initializeLocationEngine() {
-        LocationEngineProvider locationEngineProvider = new LocationEngineProvider(this);
-        locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
-        locationEngine.setPriority(LocationEnginePriority.HIGH_ACCURACY);
-        locationEngine.addLocationEngineListener(this);
-        locationEngine.requestLocationUpdates();
-        locationEngine.activate();
-
-        Location lastLocation = locationEngine.getLastLocation();
-        if (lastLocation != null) {
-            originLocation = lastLocation;
-        }
-    }
-
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -714,49 +579,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     /**
-     * Open and close pacmans mouth by changing the drawable.
-     */
-    private void animatePacman() {
-        pacmanCloseMouth();
-        final Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                pacmanOpenMouth();
-            }
-        }, 1000);
-    }
-
-    private void pacmanOpenMouth() {
-        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
-    }
-
-    private void pacmanCloseMouth() {
-        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
-    }
-
-    /**
-     * Find nearest marker from RTree and get it from the observable.
-     * If observable is empty just return null.
-     *
-     * @param loc User location
-     * @return Marker to be removed.
-     */
-    private Entry<String, Point> findNearestMarker(Location loc) {
-        Observable<Entry<String, Point>> entries = rTreeMarker.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
-
-        //Well this is certainly is not clean. I dont like throwing null checks everywhere
-        //But it is nice that it works.. clean later on.
-        return entries.toBlocking().firstOrDefault(null);
-    }
-
-    private Iterable<Entry<String, Point>> findNearestMarkers(Location loc, double dist, int count) {
-        Observable<Entry<String, Point>> entries = rTreeNavigation.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
-
-        return entries.toBlocking().toIterable();
-    }
-
-    /**
      * When user location is updated get the nearest marker
      * and check if it is close enough to the user and then 'eat it'.
      *
@@ -764,7 +586,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      */
     @Override
     public void onLocationChanged(Location location) {
-       if (gameStarted) {
+       if (gameStateHandler.isGameStarted()) {
            Entry<String, Point> point = findNearestMarker(location);
            if (point != null) {
                int key = point.geometry().hashCode();
@@ -780,27 +602,26 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                    if (distance < EATING_DISTANCE) {
                        mapboxMap.removeMarker(marker);
                        markers.remove(key);
-                       rTreeMarker.delete(point);
+                       gameDataHandler.removeFromTreeMarker(point);
                        animatePacman();
-                       gameTime += 5;
+                       gameStateHandler.addGameTime(5);
                    }
                }
            }
        }
     }
 
-    private static class LatLngEvaluator implements TypeEvaluator<LatLng> {
-        // Method is used to interpolate the marker animation.
-
-        private LatLng latLng = new LatLng();
-
-        @Override
-        public LatLng evaluate(float fraction, LatLng startValue, LatLng endValue) {
-            latLng.setLatitude(startValue.getLatitude()
-                    + ((endValue.getLatitude() - startValue.getLatitude()) * fraction));
-            latLng.setLongitude(startValue.getLongitude()
-                    + ((endValue.getLongitude() - startValue.getLongitude()) * fraction));
-            return latLng;
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
     }
 
@@ -843,19 +664,5 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     @Override
     public void onConnected() {
 
-    }
-
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-        }
     }
 }
