@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:background="#3E80B4"
+    android:orientation="vertical"
+    android:paddingBottom="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="10dp"
+        android:text="High Scores"
+        android:textColor="@android:color/white"
+        android:textSize="30sp"/>
+
+    <ListView
+        android:id="@+id/leaderboard"
+        android:layout_width="300dp"
+        android:layout_height="445dp">
+
+    </ListView>
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="10dp"
+        android:background="#3E80B4"
+        android:orientation="horizontal"
+        android:minHeight="30dp"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btn_close"
+            android:layout_width="100dp"
+            android:layout_height="30dp"
+            android:background="@android:color/white"
+            android:clickable="true"
+            android:text="Close"
+            android:textColor="#5DBCD2"
+            android:textStyle="bold"
+            android:gravity="center"/>
+    </LinearLayout>
+
+</LinearLayout>

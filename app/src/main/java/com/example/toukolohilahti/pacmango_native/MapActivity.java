@@ -21,10 +21,13 @@ import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -33,6 +36,7 @@ import com.example.toukolohilahti.pacmango_native.overpass.Overpass;
 import com.example.toukolohilahti.pacmango_native.overpass.Position;
 import com.example.toukolohilahti.pacmango_native.overpass.Road;
 import com.example.toukolohilahti.pacmango_native.util.DistanceUtil;
+import com.example.toukolohilahti.pacmango_native.util.HighScoreRow;
 import com.example.toukolohilahti.pacmango_native.util.HighScores;
 import com.example.toukolohilahti.pacmango_native.util.LoopDirection;
 import com.github.davidmoten.rtree.Entry;
@@ -60,6 +64,9 @@ import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
 import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
@@ -164,11 +171,10 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         button.setAnimation(animation);
     }
 
-    //TODO: fix highscores
+
     private void submitScore(String username, int points) {
         HighScores highScores =  new HighScores();
-        //thread is not runable, msg ignore, state:WAITING
-        //highScores.SendHighScore(username, points, points, 1);
+        highScores.SendHighScore(username, points, points, 1);
     }
 
     /**
@@ -528,12 +534,46 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_leaderboard) {
+            showLeaderBoard();
             return true;
         } else if (id == R.id.action_location) {
             animateCameraToMyLocation();
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    public void showLeaderBoard() {
+        final Dialog dialog = new Dialog(this);
+        dialog.setCancelable(false);
+        dialog.setContentView(R.layout.high_score_table);
+        ListView scoreList = dialog.findViewById(R.id.leaderboard);
+        Button close = dialog.findViewById(R.id.btn_close);
+        HighScores hs = new HighScores();
+        ArrayList<HighScoreRow> scoreArray = hs.getHighScores();
+        scoreArray.sort(Comparator.comparingInt(HighScoreRow::getScore));
+        Collections.reverse(scoreArray);
+        scoreList.setAdapter(new ArrayAdapter<HighScoreRow>(this,R.layout.high_score_item, R.id.player_name, scoreArray) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView name = (TextView) view.findViewById(R.id.player_name);
+                TextView score = (TextView) view.findViewById(R.id.player_score);
+
+                HighScoreRow row = scoreArray.get(position);
+                name.setText(row.getPlayer());
+                score.setText(Integer.toString(row.getScore()));
+                return view;
+            }
+        });
+
+        // if button is clicked, close the custom dialog
+        close.setOnClickListener(v -> {
+            dialog.dismiss();
+            startGame();
+        });
+
+        dialog.show();
     }
 
     @Override
