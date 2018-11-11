@@ -28,4 +28,12 @@ public class HighScoreRow extends HighScores {
                 ", timestamp=" + timestamp +
                 '}';
     }
+
+    public String getPlayer() {
+        return player;
+    }
+
+    public int getScore() {
+        return score;
+    }
 }
