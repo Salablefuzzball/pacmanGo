@@ -570,7 +570,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         // if button is clicked, close the custom dialog
         close.setOnClickListener(v -> {
             dialog.dismiss();
-            startGame();
         });
 
         dialog.show();

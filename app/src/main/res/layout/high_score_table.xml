@@ -19,7 +19,7 @@
     <ListView
         android:id="@+id/leaderboard"
         android:layout_width="300dp"
-        android:layout_height="445dp">
+        android:layout_height="435dp">
 
     </ListView>
 
@@ -36,14 +36,15 @@
 
         <Button
             android:id="@+id/btn_close"
-            android:layout_width="100dp"
-            android:layout_height="30dp"
+            android:layout_width="125dp"
+            android:layout_height="52dp"
             android:background="@android:color/white"
             android:clickable="true"
             android:text="Close"
             android:textColor="#5DBCD2"
             android:textStyle="bold"
-            android:gravity="center"/>
+            android:gravity="center"
+            android:focusable="true" />
     </LinearLayout>
 
 </LinearLayout>
