@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:layout_margin="10dp"
-        android:text="High Scores"
+        android:text="@string/high_scores"
         android:textColor="@android:color/white"
         android:textSize="30sp"/>
 
@@ -40,7 +40,7 @@
             android:layout_height="52dp"
             android:background="@android:color/white"
             android:clickable="true"
-            android:text="Close"
+            android:text="@string/close"
             android:textColor="#5DBCD2"
             android:textStyle="bold"
             android:gravity="center"

@@ -10,4 +10,11 @@
     <string name="dot">.</string>
     <string name="survive">You survived for&#160;</string>
     <string name="seconds">&#160;seconds</string>
+    <string name="new_game">New game</string>
+    <string name="game_over">GAME OVER!</string>
+    <string name="high_scores">High Scores</string>
+    <string name="close">Close</string>
+    <string name="submit">Submit</string>
+    <string name="username">Username</string>
+    <string name="save_score">Save score</string>
 </resources>

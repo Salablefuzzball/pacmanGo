@@ -13,7 +13,7 @@
         android:layout_alignParentTop="true"
         android:layout_centerInParent="true"
         android:textSize="30sp"
-        android:text="GAME OVER!"/>
+        android:text="@string/game_over"/>
 
     <TextView
         android:id="@+id/scoreText"
@@ -28,9 +28,13 @@
         android:id="@+id/newGame"
         android:layout_height="wrap_content"
         android:layout_width="wrap_content"
-        android:text="New game"
+        android:text="@string/new_game"
         android:layout_centerInParent="true"
-        android:layout_marginTop="5dp"
+        android:background="@android:color/white"
+        android:textColor="#5DBCD2"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginTop="15dp"
         android:layout_marginRight="5dp"
         android:layout_below="@+id/scoreText"
         />
@@ -39,10 +43,14 @@
         android:id="@+id/saveScore"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Save score"
+        android:background="@android:color/white"
+        android:textColor="#5DBCD2"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:text="@string/save_score"
         android:layout_centerInParent="true"
         android:layout_marginTop="5dp"
-        android:layout_marginRight="5dp"
+        android:layout_marginEnd="5dp"
         android:layout_below="@+id/newGame"
         />
 
@@ -50,7 +58,7 @@
         android:id="@+id/username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Username"
+        android:hint="@string/username"
         android:visibility="gone"
         android:layout_below="@+id/saveScore"
          />
@@ -59,11 +67,12 @@
         android:id="@+id/submit"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Submit"
+        android:text="@string/submit"
         android:layout_centerInParent="true"
         android:visibility="gone"
         android:layout_marginTop="5dp"
-        android:layout_marginRight="5dp"
+        android:background="@android:color/white"
+        android:layout_marginEnd="5dp"
         android:layout_below="@+id/username"
         />
 </RelativeLayout>
