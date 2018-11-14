@@ -68,7 +68,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
 import rx.Observable;
@@ -110,7 +109,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         mapView.getMapAsync(mapboxMap -> {
             self.mapboxMap = mapboxMap;
             hideMapboxAttributes();
-            disableControls();
+            //disableControls();
             enableLocationPlugin();
         });
     }
@@ -180,7 +179,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     /**
      * Init data structures again. Clear map from pac-dots and ghosts.
      */
-    private void startGame() {
+    private void initializeNewGame() {
         mapboxMap.clear();
         gameStateHandler.newGame();
         gameDataHandler.createRTrees();
@@ -251,21 +250,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         }.start();
     }
 
-    /**
-     * Query location few times because sometimes
-     * it does not update the location correctly.
-     * This might not fix that but who knows.
-     *
-     * @return Hopefully correct location.
-     */
     @SuppressLint("MissingPermission")
     private Location getUserLocation() {
-        Location location = null;
-        for(int i = 0; i<5; i++) {
-            location = locationEngine.getLastLocation();
-        }
-        return location;
-
+        return locationEngine.getLastLocation();
     }
 
     @SuppressLint("SetTextI18n")
@@ -287,7 +274,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         // if button is clicked, close the custom dialog
         newGame.setOnClickListener(v -> {
             dialog.dismiss();
-            startGame();
+            gameStateHandler.startGame();
+            initializeNewGame();
         });
 
         saveScore.setOnClickListener(v -> {
@@ -357,7 +345,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private void enableLocationPlugin() {
         // Check if permissions are enabled and if not request
         if (PermissionsManager.areLocationPermissionsGranted(this)) {
-            CompletableFuture<Void> future = initializeLocationEngine();
+            initializeLocationEngine();
             // Create an instance of the plugin. Adding in LocationLayerOptions is also an optional
             // parameter
             locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
@@ -369,8 +357,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
             getLifecycle().addObserver(locationLayerPlugin);
 
-            //Make sure locationEngine is initialized before doing anything
-            future.thenRun(this::startGame);
         } else {
             permissionsManager = new PermissionsManager(this);
             permissionsManager.requestLocationPermissions(this);
@@ -378,19 +364,15 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     @SuppressWarnings( {"MissingPermission"})
-    private CompletableFuture<Void> initializeLocationEngine() {
+    private void initializeLocationEngine() {
         MapActivity context = this;
-        return CompletableFuture.supplyAsync(() -> {
-            LocationEngineProvider locationEngineProvider = new LocationEngineProvider(context);
-            locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
-            locationEngine.setPriority(LocationEnginePriority.HIGH_ACCURACY);
-            locationEngine.addLocationEngineListener(context);
-            locationEngine.requestLocationUpdates();
-            locationEngine.activate();
-            animationHandler.setLocationEngine(locationEngine);
-
-            return null;
-        });
+        LocationEngineProvider locationEngineProvider = new LocationEngineProvider(context);
+        locationEngine = locationEngineProvider.obtainBestLocationEngineAvailable();
+        locationEngine.setPriority(LocationEnginePriority.HIGH_ACCURACY);
+        locationEngine.addLocationEngineListener(context);
+        locationEngine.requestLocationUpdates();
+        locationEngine.activate();
+        animationHandler.setLocationEngine(locationEngine);
     }
 
     @SuppressWarnings({"MissingPermission"})
@@ -647,6 +629,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                    }
                }
            }
+       } else {
+           //Start game here because the user location has for sure updated
+           initializeNewGame();
        }
     }
 

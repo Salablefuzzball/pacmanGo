@@ -38,7 +38,7 @@ public class AnimationHandler {
 
     private List<Handler> ghostHandlers = new ArrayList<>();
 
-    private static final int DEATH_RADIUS = 15;
+    private static final int DEATH_RADIUS = 10;
 
     public AnimationHandler(GameDataHandler gameDataHandler, GameOverListener gameOverListener) {
         this.gameDataHandler = gameDataHandler;
