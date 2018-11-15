@@ -133,8 +133,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private void setupProgressDialog() {
         pd = new ProgressDialog(this, R.style.MyTheme);
         pd.setCancelable(false);
-        String loadMessage = getString(R.string.loading_spinner_title);
+        String loadMessage = getString(R.string.load_user_location);
         pd.setMessage(loadMessage);
+        pd.show();
     }
 
     private void createGhosts() {
@@ -187,6 +188,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         Button button = findViewById(R.id.startGameButton);
         button.setClickable(true);
         createMarkers();
+        pd.setMessage(getString(R.string.loading_spinner_title));
     }
 
     /**
@@ -205,6 +207,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     @SuppressLint("HandlerLeak")
     private Handler processRoadData() {
+        if (!pd.isShowing()) pd.show();
+
         return new Handler() {
             @Override
             public void handleMessage(Message msg) {
@@ -235,7 +239,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      * @param handler Where markers will be added to the map.
      */
     private void queryRoadDataInThread(Handler handler) {
-        pd.show();
         new Thread() {
             public void run() {
                 Overpass pass = new Overpass();
@@ -515,17 +518,19 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         int id = item.getItemId();
 
         //noinspection SimplifiableIfStatement
-        if (id == R.id.action_leaderboard) {
+        if (id == R.id.action_leaderboard && !gameStateHandler.isLeaderBoardOpen()) {
             showLeaderBoard();
             return true;
         } else if (id == R.id.action_location) {
             animateCameraToMyLocation();
+            return true;
         }
 
         return super.onOptionsItemSelected(item);
     }
 
     public void showLeaderBoard() {
+        gameStateHandler.setLeaderBoardOpen(true);
         final Dialog dialog = new Dialog(this);
         dialog.setCancelable(false);
         dialog.setContentView(R.layout.high_score_table);
@@ -551,6 +556,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         // if button is clicked, close the custom dialog
         close.setOnClickListener(v -> {
+            gameStateHandler.setLeaderBoardOpen(false);
             dialog.dismiss();
         });
 
@@ -630,8 +636,10 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                }
            }
        } else {
-           //Start game here because the user location has for sure updated
-           initializeNewGame();
+           if (!gameStateHandler.isGameInitialized()) {
+               //Start game here because the user location has for sure updated
+               initializeNewGame();
+           }
        }
     }
 

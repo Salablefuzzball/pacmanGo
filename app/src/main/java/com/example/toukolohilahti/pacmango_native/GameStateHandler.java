@@ -6,9 +6,24 @@ public class GameStateHandler {
     private int points = 0;
     private boolean gameStarted = false;
     private boolean gameOver = false;
+    private boolean gameInitialized = false;
+    private boolean leaderBoardOpen = false;
+
+    public boolean isLeaderBoardOpen() {
+        return leaderBoardOpen;
+    }
+
+    public void setLeaderBoardOpen(boolean leaderBoardOpen) {
+        this.leaderBoardOpen = leaderBoardOpen;
+    }
+
+    public boolean isGameInitialized() {
+        return gameInitialized;
+    }
 
     public void newGame() {
         gameOver = false;
+        gameInitialized = true;
         gameTime = 60;
         points = 0;
     }
