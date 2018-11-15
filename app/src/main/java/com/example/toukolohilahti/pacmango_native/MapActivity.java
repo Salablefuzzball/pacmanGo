@@ -207,7 +207,9 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     @SuppressLint("HandlerLeak")
     private Handler processRoadData() {
-        if (!pd.isShowing()) pd.show();
+        if (!pd.isShowing()) {
+            pd.show();
+        }
 
         return new Handler() {
             @Override
