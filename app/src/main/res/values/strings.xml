@@ -18,4 +18,5 @@
     <string name="username">Username</string>
     <string name="save_score">Save score</string>
     <string name="load_user_location">Getting user location...</string>
+    <string name="leaderboardText">Leaderboard</string>
 </resources>

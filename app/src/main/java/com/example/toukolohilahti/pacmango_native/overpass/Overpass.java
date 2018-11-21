@@ -63,12 +63,19 @@ public class Overpass {
         SparseArray<Road> roadMap = new SparseArray<>();
         try {
             JSONObject response = overpass.execute(url, QUERY).get();
-            JSONArray roads = response.getJSONArray("elements");
-            for (int index = 0; index < roads.length(); index++) {
-                JSONObject roadObj = roads.getJSONObject(index);
-                if (roadObj.getJSONArray("geometry").length() > 1) {
-                    Road road = new Road(roadObj.getString("type"), roadObj.getInt("id"), roadObj.getJSONArray("geometry"));
-                    roadMap.put(road.hashCode(), road);
+            JSONArray roads = new JSONArray();
+
+            if (response != null) {
+                roads = response.getJSONArray("elements");
+            }
+
+            if (roads != null) {
+                for (int index = 0; index < roads.length(); index++) {
+                    JSONObject roadObj = roads.getJSONObject(index);
+                    if (roadObj.getJSONArray("geometry").length() > 1) {
+                        Road road = new Road(roadObj.getString("type"), roadObj.getInt("id"), roadObj.getJSONArray("geometry"));
+                        roadMap.put(road.hashCode(), road);
+                    }
                 }
             }
 

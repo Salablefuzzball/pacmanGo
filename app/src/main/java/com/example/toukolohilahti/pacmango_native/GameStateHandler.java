@@ -22,7 +22,6 @@ public class GameStateHandler {
     }
 
     public void newGame() {
-        gameOver = false;
         gameInitialized = true;
         gameTime = 60;
         points = 0;
@@ -30,7 +29,13 @@ public class GameStateHandler {
 
     public void startGame() {
         gameStarted = true;
+        gameOver = false;
     }
+
+    public boolean isGameRunning() {
+        return gameStarted && !gameOver;
+    }
+
 
     public void reduceGameTime(int reduce) {
         gameTime -= reduce;

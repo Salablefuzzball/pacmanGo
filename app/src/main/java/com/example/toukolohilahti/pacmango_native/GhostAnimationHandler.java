@@ -26,7 +26,7 @@ import java.util.List;
 import rx.Observable;
 import timber.log.Timber;
 
-public class AnimationHandler {
+public class GhostAnimationHandler {
 
     private LocationEngine locationEngine;
 
@@ -40,7 +40,7 @@ public class AnimationHandler {
 
     private static final int DEATH_RADIUS = 10;
 
-    public AnimationHandler(GameDataHandler gameDataHandler, GameOverListener gameOverListener) {
+    public GhostAnimationHandler(GameDataHandler gameDataHandler, GameOverListener gameOverListener) {
         this.gameDataHandler = gameDataHandler;
         this.gameOverListener = gameOverListener;
     }
@@ -84,7 +84,6 @@ public class AnimationHandler {
                     }
                 }
 
-                //Lets make sure our app does not crash
                 if ((direction.equals(LoopDirection.BACKWARD) && index >= 0) || (direction.equals(LoopDirection.FORWARD) && road.geometry.size() > index)) {
                     searchDist = 75;
                     searchCount = 5;
@@ -151,7 +150,7 @@ public class AnimationHandler {
     /**
      * Class is used to interpolate the marker animation.
      */
-    private static class LatLngEvaluator implements TypeEvaluator<LatLng> {
+    static class LatLngEvaluator implements TypeEvaluator<LatLng> {
         private LatLng latLng = new LatLng();
 
         @Override

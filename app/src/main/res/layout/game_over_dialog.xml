@@ -40,6 +40,21 @@
         />
 
     <Button
+        android:id="@+id/leaderBoardButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@android:color/white"
+        android:textColor="#5DBCD2"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:text="@string/leaderboardText"
+        android:layout_centerInParent="true"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_below="@+id/newGame"
+        />
+
+    <Button
         android:id="@+id/saveScore"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -51,7 +66,7 @@
         android:layout_centerInParent="true"
         android:layout_marginTop="5dp"
         android:layout_marginEnd="5dp"
-        android:layout_below="@+id/newGame"
+        android:layout_below="@+id/leaderBoardButton"
         />
 
     <android.support.v7.widget.AppCompatEditText
@@ -60,7 +75,7 @@
         android:layout_height="wrap_content"
         android:hint="@string/username"
         android:visibility="gone"
-        android:layout_below="@+id/saveScore"
+        android:layout_below="@+id/leaderBoardButton"
          />
 
     <Button

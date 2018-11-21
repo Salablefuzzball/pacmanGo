@@ -21,6 +21,8 @@ public class Road extends Overpass implements Parcelable {
     public int id;
     public ArrayList<Position> geometry;
 
+    private static final int DOT_MIN_DISTANCE = 30;
+
     public Road(String type, int id, JSONArray geometry) {
         this.type = type;
         this.id = id;
@@ -41,7 +43,7 @@ public class Road extends Overpass implements Parcelable {
             for(int index = 1; index < positionArrayList.size(); index++) {
                 Position pos1 = positionArrayList.get(index-1);
                 Position pos2 = positionArrayList.get(index);
-                if(DistanceUtil.distance(pos1.lat, pos1.lon, pos2.lat, pos2.lon) > 15) {
+                if(DistanceUtil.distance(pos1.lat, pos1.lon, pos2.lat, pos2.lon) > DOT_MIN_DISTANCE) {
                     positionArrayList.add(index, DistanceUtil.calculateMidPoint(pos1.lat, pos1.lon, pos2.lat, pos2.lon));
                     index++;
                 }
