@@ -10,6 +10,8 @@ import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.CountDownTimer;
@@ -161,7 +163,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         LoopDirection direction = ghostAnimationHandler.findDirection(road.geometry, randomRoadSection);
 
-        Marker ghostMarker = mapboxMap.addMarker(createMarkerOptions(ghost, loc));
+        Marker ghostMarker = mapboxMap.addMarker(createGhostMarkerOptions(ghost, loc));
 
         ghostAnimationHandler.animate(ghostMarker, road, direction, randomRoadSection);
     }
@@ -227,7 +229,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 int isLast = msg.getData().getInt("last");
                 if(road != null) {
                     for (Position loc : road.geometry) {
-                        MarkerOptions options = createMarkerOptions(R.mipmap.pacdot, loc);
+                        MarkerOptions options = createDotMarkerOptions(R.mipmap.pacdot, loc);
                         Marker marker = mapboxMap.addMarker(options);
                         Point point = Geometries.point(loc.lat, loc.lon);
                         gameDataHandler.addValueToTrees(road, point);
@@ -454,15 +456,33 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         });
     }
 
-    private MarkerOptions createMarkerOptions(int resource, Position loc) {
+    private MarkerOptions createGhostMarkerOptions(int resource, Position loc) {
         MarkerOptions options = new MarkerOptions();
         LatLng pos = new LatLng();
         pos.setLatitude(loc.lat);
         pos.setLongitude(loc.lon);
         options.setPosition(pos);
+
         IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
         Icon icon = iconFactory.fromResource(resource);
+
         options.setIcon(icon);
+
+        return options;
+    }
+
+    private MarkerOptions createDotMarkerOptions(int resource, Position loc) {
+        MarkerOptions options = new MarkerOptions();
+        LatLng pos = new LatLng();
+        pos.setLatitude(loc.lat);
+        pos.setLongitude(loc.lon);
+        options.setPosition(pos);
+
+        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+        Bitmap b = BitmapFactory.decodeResource(MapActivity.this.getResources(), resource);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 20, 20, false);
+
+        options.setIcon(iconFactory.fromBitmap(smallMarker));
 
         return options;
     }
