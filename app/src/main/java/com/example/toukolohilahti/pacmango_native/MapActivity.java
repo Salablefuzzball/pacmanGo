@@ -29,6 +29,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.view.animation.LinearInterpolator;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -85,7 +86,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private PermissionsManager permissionsManager;
     private LocationLayerPlugin locationLayerPlugin;
     private LocationEngine locationEngine;
-    private SparseArray<MarkerOptions> markers;
+    private SparseArray<Marker> markers;
 
     ProgressDialog pd;
 
@@ -160,7 +161,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         LoopDirection direction = ghostAnimationHandler.findDirection(road.geometry, randomRoadSection);
 
-        Marker ghostMarker = createGhostMarker(ghost, loc);
+        Marker ghostMarker = mapboxMap.addMarker(createMarkerOptions(ghost, loc));
 
         ghostAnimationHandler.animate(ghostMarker, road, direction, randomRoadSection);
     }
@@ -226,11 +227,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 int isLast = msg.getData().getInt("last");
                 if(road != null) {
                     for (Position loc : road.geometry) {
-                        MarkerOptions options = createMarkerOptions(loc);
-                        mapboxMap.addMarker(options);
+                        MarkerOptions options = createMarkerOptions(R.mipmap.pacdot, loc);
+                        Marker marker = mapboxMap.addMarker(options);
                         Point point = Geometries.point(loc.lat, loc.lon);
                         gameDataHandler.addValueToTrees(road, point);
-                        markers.put(point.hashCode(), options);
+                        markers.put(point.hashCode(), marker);
                     }
                 }
 
@@ -453,16 +454,17 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         });
     }
 
-    private Marker createGhostMarker(int ghost, Position loc) {
+    private MarkerOptions createMarkerOptions(int resource, Position loc) {
         MarkerOptions options = new MarkerOptions();
         LatLng pos = new LatLng();
         pos.setLatitude(loc.lat);
         pos.setLongitude(loc.lon);
         options.setPosition(pos);
         IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
-        Icon icon = iconFactory.fromResource(ghost);
+        Icon icon = iconFactory.fromResource(resource);
         options.setIcon(icon);
-        return mapboxMap.addMarker(options);
+
+        return options;
     }
 
     private Message createMessage(SparseArray<Road> roadMap, int index) {
@@ -474,19 +476,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         msg.setData(bundle);
 
         return msg;
-    }
-
-    private MarkerOptions createMarkerOptions(Position loc) {
-        MarkerOptions options = new MarkerOptions();
-        LatLng pos = new LatLng();
-        pos.setLatitude(loc.lat);
-        pos.setLongitude(loc.lon);
-        options.setPosition(pos);
-        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
-        Icon pacdotIcon = iconFactory.fromResource(R.mipmap.pacdot);
-        options.setIcon(pacdotIcon);
-
-        return options;
     }
 
     private Iterable<Entry<String, Point>> findNearestMarkers(Location loc, double dist, int count) {
@@ -615,9 +604,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
             for (Entry<String, Point> point: nearestMarkers) {
                 int key = point.geometry().hashCode();
-                MarkerOptions options = markers.get(key);
-                if (options != null) {
-                    Marker marker = options.getMarker();
+                Marker marker = markers.get(key);
+                if (marker != null) {
                     LatLng markerPos = marker.getPosition();
                     double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
                     double bearing = DistanceUtil.bearing(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
@@ -645,7 +633,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         ValueAnimator markerAnimator = ObjectAnimator.ofObject(targetDot, "position",
                 new GhostAnimationHandler.LatLngEvaluator(), targetDot.getPosition(), destLoc);
-        markerAnimator.setDuration(1000);
+        markerAnimator.setDuration(100);
 
         markerAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
@@ -657,7 +645,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         });
 
         markerAnimator.start();
-
     }
 
     @Override

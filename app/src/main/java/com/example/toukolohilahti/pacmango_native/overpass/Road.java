@@ -21,7 +21,7 @@ public class Road extends Overpass implements Parcelable {
     public int id;
     public ArrayList<Position> geometry;
 
-    private static final int DOT_MIN_DISTANCE = 30;
+    private static final int DOT_MIN_DISTANCE = 15;
 
     public Road(String type, int id, JSONArray geometry) {
         this.type = type;
