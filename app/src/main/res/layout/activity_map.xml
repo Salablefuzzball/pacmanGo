@@ -34,6 +34,12 @@
             android:id="@+id/toolbar_title" />
     </android.support.v7.widget.Toolbar>
 
+    <ImageView
+        android:id="@+id/blue_ghost_arrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        mapbox:srcCompat="@mipmap/ghost_arrow" />
+
     <TextView
         android:id="@+id/timeScore"
         android:layout_width="wrap_content"

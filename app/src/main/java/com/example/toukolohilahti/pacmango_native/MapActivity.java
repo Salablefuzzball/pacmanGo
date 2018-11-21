@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.TypeEvaluator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.app.ProgressDialog;
@@ -94,7 +95,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
     private static final int EATING_FOV = 100;
     private static final int BONUS_TIME = 5;
-    private static final int EATING_DISTANCE = 10;
+    private static final int EATING_DISTANCE = 20;
     private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
             R.mipmap.pink_ghost, R.mipmap.yellow_ghost};
 
@@ -488,19 +489,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         return options;
     }
 
+    private Iterable<Entry<String, Point>> findNearestMarkers(Location loc, double dist, int count) {
+        RTree<String, Point> tree = gameDataHandler.getNavigationTree();
+        Observable<Entry<String, Point>> entries = tree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), dist, count);
 
-    /**
-     * Find nearest marker from RTree and get it from the observable.
-     * If observable is empty just return null.
-     *
-     * @param loc User location
-     * @return Marker to be removed.
-     */
-    private Entry<String, Point> findNearestMarker(Location loc) {
-        RTree<String, Point> tree = gameDataHandler.getMarkerTree();
-        Observable<Entry<String, Point>> entries = tree.nearest(Geometries.point(loc.getLatitude(),loc.getLongitude()), 100.0, 1);
-
-        return entries.toBlocking().firstOrDefault(null);
+        return entries.toBlocking().toIterable();
     }
 
     @Override
@@ -618,24 +611,26 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     @Override
     public void onLocationChanged(Location location) {
         if (gameStateHandler.isGameRunning()) {
-           Entry<String, Point> point = findNearestMarker(location);
-           if (point != null) {
-               int key = point.geometry().hashCode();
-               MarkerOptions options = markers.get(key);
-               if (options != null) {
-                   Marker marker = options.getMarker();
-                   LatLng markerPos = marker.getPosition();
-                   double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
-                   double bearing = DistanceUtil.bearing(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
-                   double userBearing = location.getBearing();
+            Iterable<Entry<String, Point>> nearestMarkers = findNearestMarkers(location, 50, 5);
 
-                   if (distance < EATING_DISTANCE && Math.abs(bearing - userBearing) < EATING_FOV) {
-                       markers.remove(key);
-                       gameDataHandler.removeFromTreeMarker(point);
-                       animatePacmanEating(marker, location);
-                   }
-               }
-           }
+            for (Entry<String, Point> point: nearestMarkers) {
+                int key = point.geometry().hashCode();
+                MarkerOptions options = markers.get(key);
+                if (options != null) {
+                    Marker marker = options.getMarker();
+                    LatLng markerPos = marker.getPosition();
+                    double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
+                    double bearing = DistanceUtil.bearing(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
+                    double userBearing = location.getBearing();
+
+                    if (distance < EATING_DISTANCE && Math.abs(bearing - userBearing) < EATING_FOV) {
+                        markers.remove(key);
+                        gameDataHandler.removeFromTreeMarker(point);
+                        animatePacmanEating(marker, location);
+                    }
+                }
+            }
+
        } else {
            if (!gameStateHandler.isGameInitialized()) {
                //Start game here because the user location has for sure updated
@@ -648,13 +643,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         pacmanOpenMouth();
         LatLng destLoc = new LatLng(userLoc.getLatitude(), userLoc.getLongitude());
 
-        TypeEvaluator<LatLng> typeEvaluator = new GhostAnimationHandler.LatLngEvaluator();
+        ValueAnimator markerAnimator = ObjectAnimator.ofObject(targetDot, "position",
+                new GhostAnimationHandler.LatLngEvaluator(), targetDot.getPosition(), destLoc);
+        markerAnimator.setDuration(1000);
 
-        Property<Marker, LatLng> property = Property.of(Marker.class, LatLng.class, "position");
-        ObjectAnimator objectAnimator = ObjectAnimator.ofObject(targetDot, property, typeEvaluator, destLoc);
-        objectAnimator.setDuration(500);
-
-        objectAnimator.addListener(new AnimatorListenerAdapter() {
+        markerAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
                 mapboxMap.removeMarker(targetDot);
@@ -663,8 +656,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             }
         });
 
+        markerAnimator.start();
 
-        objectAnimator.start();
     }
 
     @Override
