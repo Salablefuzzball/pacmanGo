@@ -15,7 +15,6 @@ import android.location.Location;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
-import android.sax.RootElement;
 import android.support.annotation.NonNull;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.ActionBar;
@@ -29,8 +28,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.view.animation.LinearInterpolator;
-import android.view.animation.RotateAnimation;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -65,7 +62,6 @@ import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.location.LocationComponent;
 import com.mapbox.mapboxsdk.location.LocationComponentOptions;
 import com.mapbox.mapboxsdk.location.modes.CameraMode;
@@ -128,7 +124,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         mapView.getMapAsync(mapboxMap -> {
             self.mapboxMap = mapboxMap;
             hideMapboxAttributes();
-            //disableControls();
+            disableControls();
             enableLocationComponent();
         });
     }
@@ -753,11 +749,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     LatLng markerPos = marker.getPosition();
                     double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
 
-                    Location loc = new Location("dummyprovider");
-                    loc.setLongitude(markerPos.getLongitude());
-                    loc.setLatitude(markerPos.getLatitude());
-
-                    float bearing = location.bearingTo(loc);
+                    float bearing = (float) DistanceUtil.bearing((float) location.getLatitude(), (float) location.getLongitude(), (float) markerPos.getLatitude(), (float) markerPos.getLongitude());
+                    bearing = bearing + location.getBearing();
 
                     if (distance < EATING_DISTANCE && bearing < EATING_FOV) {
                         markers.remove(key);
