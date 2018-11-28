@@ -32,7 +32,7 @@ public class GhostAnimationHandler {
 
     private GameDataHandler gameDataHandler;
 
-    private GameOverListener gameOverListener;
+    private GameStateListener gameStateListener;
 
     private List<Runnable> ghostRunnables = new ArrayList<>();
 
@@ -40,12 +40,12 @@ public class GhostAnimationHandler {
 
     private static final int DEATH_RADIUS = 10;
 
-    public GhostAnimationHandler(GameDataHandler gameDataHandler, GameOverListener gameOverListener) {
+    public GhostAnimationHandler(GameDataHandler gameDataHandler, GameStateListener gameStateListener) {
         this.gameDataHandler = gameDataHandler;
-        this.gameOverListener = gameOverListener;
+        this.gameStateListener = gameStateListener;
     }
 
-    public void animate(Marker ghost, Road currentRoad, LoopDirection drct, int indx) {
+    public void animate(Marker ghost, Road currentRoad, LoopDirection drct, int indx, long ghostId) {
         Handler handler = new Handler();
 
         ghostHandlers.add(handler);
@@ -104,6 +104,8 @@ public class GhostAnimationHandler {
                     markerAnimator.setDuration(3000);
                     markerAnimator.start();
 
+                    gameStateListener.ghostLocationChange(ghost.getPosition(), (int) ghostId);
+
                     //Loop the arrayList in the correct direction
                     if (direction.equals(LoopDirection.BACKWARD)) {
                         index--;
@@ -118,7 +120,7 @@ public class GhostAnimationHandler {
                 }
 
                 if (checkIfGameOver(ghostPos)) {
-                    gameOverListener.gameOver();
+                    gameStateListener.gameOver();
                 } else {
                     handler.postDelayed(this, delay);
                 }

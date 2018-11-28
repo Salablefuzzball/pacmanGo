@@ -3,13 +3,11 @@ package com.example.toukolohilahti.pacmango_native;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
-import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -17,13 +15,13 @@ import android.location.Location;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
+import android.sax.RootElement;
 import android.support.annotation.NonNull;
 import android.support.multidex.MultiDex;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
-import android.util.Property;
 import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -31,10 +29,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.view.animation.LinearInterpolator;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -65,12 +63,12 @@ import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.mapboxsdk.location.LocationComponent;
+import com.mapbox.mapboxsdk.location.LocationComponentOptions;
+import com.mapbox.mapboxsdk.location.modes.CameraMode;
+import com.mapbox.mapboxsdk.location.modes.RenderMode;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerOptions;
-import com.mapbox.mapboxsdk.plugins.locationlayer.LocationLayerPlugin;
-import com.mapbox.mapboxsdk.plugins.locationlayer.modes.CameraMode;
-import com.mapbox.mapboxsdk.plugins.locationlayer.modes.RenderMode;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,14 +79,15 @@ import java.util.concurrent.ThreadLocalRandom;
 import rx.Observable;
 import timber.log.Timber;
 
-public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener, GameOverListener {
+public class MapActivity extends AppCompatActivity implements LocationEngineListener, PermissionsListener, GameStateListener {
 
     private MapView mapView;
     private MapboxMap mapboxMap;
     private PermissionsManager permissionsManager;
-    private LocationLayerPlugin locationLayerPlugin;
+    private LocationComponent locationComponent;
     private LocationEngine locationEngine;
     private SparseArray<Marker> markers;
+    private Icon pacdotIcon;
 
     ProgressDialog pd;
 
@@ -101,6 +100,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private static final int EATING_DISTANCE = 20;
     private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
             R.mipmap.pink_ghost, R.mipmap.yellow_ghost};
+    private static final int [] GHOST_ARROWS = new int [] {R.mipmap.ghost_arrow_blue, R.mipmap.ghost_arrow_green,
+            R.mipmap.ghost_arrow_pink, R.mipmap.ghost_arrow_red};
 
     public MapActivity() {
         this.gameDataHandler = new GameDataHandler();
@@ -126,8 +127,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         mapView.getMapAsync(mapboxMap -> {
             self.mapboxMap = mapboxMap;
             hideMapboxAttributes();
-            disableControls();
-            enableLocationPlugin();
+            //disableControls();
+            enableLocationComponent();
         });
     }
 
@@ -154,6 +155,12 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         }
     }
 
+    private void createGhostArrows() {
+        for (int arrow: GHOST_ARROWS) {
+            createGhostArrow(arrow);
+        }
+    }
+
     private void createGhost(int ghost) {
         SparseArray<Road> roadMap = gameDataHandler.getRoadMap();
         int randomRoad = ThreadLocalRandom.current().nextInt(0, roadMap.size());
@@ -165,7 +172,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         Marker ghostMarker = mapboxMap.addMarker(createGhostMarkerOptions(ghost, loc));
 
-        ghostAnimationHandler.animate(ghostMarker, road, direction, randomRoadSection);
+        ghostAnimationHandler.animate(ghostMarker, road, direction, randomRoadSection, ghost);
     }
 
     private void initializeStartGameButton() {
@@ -207,6 +214,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     private void createMarkers() {
+        initPacdotIcon();
         Handler handler = processRoadData();
         queryRoadDataInThread(handler);
     }
@@ -229,7 +237,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 int isLast = msg.getData().getInt("last");
                 if(road != null) {
                     for (Position loc : road.geometry) {
-                        MarkerOptions options = createDotMarkerOptions(R.mipmap.pacdot, loc);
+                        MarkerOptions options = createDotMarkerOptions(loc);
                         Marker marker = mapboxMap.addMarker(options);
                         Point point = Geometries.point(loc.lat, loc.lon);
                         gameDataHandler.addValueToTrees(road, point);
@@ -361,21 +369,89 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         }.start();
     }
 
+    @SuppressLint("ResourceType")
+    private void createGhostArrow(int arrow) {
+        Toolbar bar = findViewById(R.id.toolbar_top);
+        int barHeight = bar.getHeight();
+
+        RelativeLayout layout = findViewById(R.id.map_layout);
+
+        int layoutHeight = layout.getHeight();
+
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(ActionBar.LayoutParams.WRAP_CONTENT, ActionBar.LayoutParams.WRAP_CONTENT);
+
+        ImageView myImage = new ImageView(this);
+
+        switch (arrow) {
+            case R.mipmap.ghost_arrow_blue:
+                params.setMargins(0,10 + barHeight,10,0);
+                params.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                myImage.setId(R.mipmap.yellow_ghost);
+                break;
+            case R.mipmap.ghost_arrow_red:
+                params.setMargins(0, (layoutHeight - barHeight) / 2,0,0);
+                params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+                myImage.setId(R.mipmap.red_ghost);
+                break;
+            case R.mipmap.ghost_arrow_green:
+                params.setMargins(0, (layoutHeight - barHeight) / 2,0,0);
+                params.addRule(RelativeLayout.ALIGN_LEFT);
+                myImage.setId(R.mipmap.green_ghost);
+                break;
+            case R.mipmap.ghost_arrow_pink:
+                params.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+                myImage.setId(R.mipmap.pink_ghost);
+                break;
+        }
+
+        myImage.setImageResource(arrow);
+        myImage.setLayoutParams(params);
+        layout.addView(myImage);
+        layout.requestLayout();
+    }
+
+    @SuppressLint("MissingPermission")
+    @Override
+    public void ghostLocationChange(LatLng ghostPos, int ghostId) {
+        ImageView arrow = findViewById(ghostId);
+
+        LatLng centerOfCamera = mapboxMap.getCameraPosition().target;
+
+        double lat1 = centerOfCamera.getLatitude();
+        double lon1 = centerOfCamera.getLongitude();
+        double lat2 = ghostPos.getLatitude();
+        double lon2 = ghostPos.getLongitude();
+
+        double bearing = DistanceUtil.bearing(lat1, lon1, lat2, lon2);
+
+        double distance = DistanceUtil.distance(lat1, lon1, lat2, lon2);
+
+        double cameraBearing = mapboxMap.getCameraPosition().bearing;
+
+        float finalBear = (float) bearing  + (float) cameraBearing;
+        arrow.setRotation(finalBear);
+        //arrow.getLayoutParams().height = (int) distance;
+        //arrow.getLayoutParams().width = (int) distance;
+
+        arrow.requestLayout();
+
+    }
+
     @SuppressWarnings({"MissingPermission"})
-    private void enableLocationPlugin() {
+    private void enableLocationComponent() {
         // Check if permissions are enabled and if not request
         if (PermissionsManager.areLocationPermissionsGranted(this)) {
+            locationComponent = mapboxMap.getLocationComponent();
+            locationComponent.activateLocationComponent(this);
+            locationComponent.setLocationComponentEnabled(true);
+
+            locationComponent.setRenderMode(RenderMode.GPS);
+            locationComponent.setCameraMode(CameraMode.TRACKING_GPS_NORTH);
+
             initializeLocationEngine();
-            // Create an instance of the plugin. Adding in LocationLayerOptions is also an optional
-            // parameter
-            locationLayerPlugin = new LocationLayerPlugin(mapView, mapboxMap);
 
-            // Set plugin settings
-            locationLayerPlugin.setRenderMode(RenderMode.GPS);
-            locationLayerPlugin.setCameraMode(CameraMode.TRACKING_GPS);
             pacmanOpenMouth();
-
-            getLifecycle().addObserver(locationLayerPlugin);
 
         } else {
             permissionsManager = new PermissionsManager(this);
@@ -422,11 +498,11 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     private void pacmanOpenMouth() {
-        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
+        locationComponent.applyStyle(LocationComponentOptions.builder(MapActivity.this).gpsDrawable(R.mipmap.pacman_open_icon).build());
     }
 
     private void pacmanCloseMouth() {
-        locationLayerPlugin.applyStyle(LocationLayerOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
+        locationComponent.applyStyle(LocationComponentOptions.builder(this).gpsDrawable(R.mipmap.pacman_close_icon).build());
     }
 
     public void startGame(View view) {
@@ -447,6 +523,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 //RELEASE THEM!!!
                 createGhosts();
                 createTimer();
+                createGhostArrows();
             }
 
             @Override
@@ -471,18 +548,21 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         return options;
     }
 
-    private MarkerOptions createDotMarkerOptions(int resource, Position loc) {
+    private void initPacdotIcon() {
+        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
+        Bitmap b = BitmapFactory.decodeResource(MapActivity.this.getResources(), R.mipmap.pacdot);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 20, 20, false);
+
+        pacdotIcon = iconFactory.fromBitmap(smallMarker);
+    }
+
+    private MarkerOptions createDotMarkerOptions(Position loc) {
         MarkerOptions options = new MarkerOptions();
         LatLng pos = new LatLng();
         pos.setLatitude(loc.lat);
         pos.setLongitude(loc.lon);
         options.setPosition(pos);
-
-        IconFactory iconFactory = IconFactory.getInstance(MapActivity.this);
-        Bitmap b = BitmapFactory.decodeResource(MapActivity.this.getResources(), resource);
-        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 20, 20, false);
-
-        options.setIcon(iconFactory.fromBitmap(smallMarker));
+        options.setIcon(pacdotIcon);
 
         return options;
     }
@@ -592,7 +672,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     @Override
     public void onPermissionResult(boolean granted) {
         if (granted) {
-            enableLocationPlugin();
+            enableLocationComponent();
         } else {
             Toast.makeText(this, R.string.user_location_permission_not_granted, Toast.LENGTH_LONG).show();
             finish();
@@ -628,10 +708,14 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                 if (marker != null) {
                     LatLng markerPos = marker.getPosition();
                     double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
-                    double bearing = DistanceUtil.bearing(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
-                    double userBearing = location.getBearing();
 
-                    if (distance < EATING_DISTANCE && Math.abs(bearing - userBearing) < EATING_FOV) {
+                    Location loc = new Location("dummyprovider");
+                    loc.setLongitude(markerPos.getLongitude());
+                    loc.setLatitude(markerPos.getLatitude());
+
+                    float bearing = location.bearingTo(loc);
+
+                    if (distance < EATING_DISTANCE && bearing < EATING_FOV) {
                         markers.remove(key);
                         gameDataHandler.removeFromTreeMarker(point);
                         animatePacmanEating(marker, location);

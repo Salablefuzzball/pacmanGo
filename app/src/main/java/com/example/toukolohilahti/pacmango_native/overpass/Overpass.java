@@ -47,6 +47,7 @@ public class Overpass {
      */
     public SparseArray<Road> getRoads(Location currentPosition) {
         Area area = calculateArea(currentPosition);
+
         final String QUERY = "<osm-script output='json' output-config='' timeout='60'> <union into='_'>"+
                 "<query into='_' type='way'><has-kv k='highway' modv='' v='pedestrian'/>"+
                 "<bbox-query s='"+ area.south +"' w='"+ area.west +"' n='"+ area.north +"' e='"+ area.east +"'/>"+

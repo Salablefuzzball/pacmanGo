@@ -47,14 +47,13 @@ public class HttpPostQuery extends AsyncTask<String, String, JSONObject> {
                 BufferedReader in = new BufferedReader(
                         new InputStreamReader(urlConnection.getInputStream()));
                 String inputLine;
-                StringBuffer response = new StringBuffer();
+                StringBuilder response = new StringBuilder();
 
                 while ((inputLine = in.readLine()) != null) {
                     response.append(inputLine);
                 }
                 in.close();
-                JSONObject jsonResponse = new JSONObject(response.toString());
-                return jsonResponse;
+                return new JSONObject(response.toString());
             } else {
                 return null;
             }
