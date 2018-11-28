@@ -56,16 +56,12 @@ public class DistanceUtil {
         return Math.sqrt(distance);
     }
 
-    public static double bearing(double lat1, double long1, double lat2, double long2) {
-        double degToRad = Math.PI / 180.0;
-        double phi1 = lat1 * degToRad;
-        double phi2 = lat2 * degToRad;
-        double lam1 = long1 * degToRad;
-        double lam2 = long2 * degToRad;
+    public static double bearing(double lat1, double lon1, double lat2, double lon2) {
+        double longDiff= lon2-lon1;
+        double y = Math.sin(longDiff)*Math.cos(lat2);
+        double x = Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(longDiff);
 
-        return Math.atan2(Math.sin(lam2-lam1)*Math.cos(phi2),
-                Math.cos(phi1)*Math.sin(phi2) - Math.sin(phi1)*Math.cos(phi2)*Math.cos(lam2-lam1)
-        ) * 180/Math.PI;
+        return (Math.toDegrees(Math.atan2(y, x)) + 360 ) % 360;
 
     }
 

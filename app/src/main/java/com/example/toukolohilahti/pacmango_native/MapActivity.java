@@ -29,6 +29,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.RotateAnimation;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -63,6 +65,7 @@ import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.annotations.MarkerOptions;
 import com.mapbox.mapboxsdk.geometry.LatLng;
+import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.location.LocationComponent;
 import com.mapbox.mapboxsdk.location.LocationComponentOptions;
 import com.mapbox.mapboxsdk.location.modes.CameraMode;
@@ -100,8 +103,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private static final int EATING_DISTANCE = 20;
     private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
             R.mipmap.pink_ghost, R.mipmap.yellow_ghost};
-    private static final int [] GHOST_ARROWS = new int [] {R.mipmap.ghost_arrow_blue, R.mipmap.ghost_arrow_green,
-            R.mipmap.ghost_arrow_pink, R.mipmap.ghost_arrow_red};
 
     public MapActivity() {
         this.gameDataHandler = new GameDataHandler();
@@ -156,8 +157,8 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     private void createGhostArrows() {
-        for (int arrow: GHOST_ARROWS) {
-            createGhostArrow(arrow);
+        for (int i = 0; i<GHOSTS.length; i++) {
+            createGhostArrow(R.mipmap.ghost_arrow, i);
         }
     }
 
@@ -194,6 +195,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
      */
     private void initializeNewGame() {
         animateCameraToMyLocation();
+        clearGhostArrows();
         mapboxMap.clear();
         gameStateHandler.newGame();
         gameDataHandler.createRTrees();
@@ -202,6 +204,19 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         button.setClickable(true);
         createMarkers();
         pd.setMessage(getString(R.string.loading_spinner_title));
+    }
+
+    /**
+     * Do not shame me.
+     */
+    private void clearGhostArrows() {
+        if (gameStateHandler.isGameInitialized()) {
+            RelativeLayout layout = findViewById(R.id.map_layout);
+            int childCount = layout.getChildCount() - 1;
+            for (int i = childCount; i > childCount - 4; i--) {
+                layout.removeViewAt(i);
+            }
+        }
     }
 
     /**
@@ -370,7 +385,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     @SuppressLint("ResourceType")
-    private void createGhostArrow(int arrow) {
+    private void createGhostArrow(int arrow, int id) {
         Toolbar bar = findViewById(R.id.toolbar_top);
         int barHeight = bar.getHeight();
 
@@ -382,26 +397,31 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
 
         ImageView myImage = new ImageView(this);
 
-        switch (arrow) {
-            case R.mipmap.ghost_arrow_blue:
-                params.setMargins(0,10 + barHeight,10,0);
+        myImage.setPadding(50, 50, 50, 50);
+
+        switch (id) {
+            case 0:
+                params.setMargins(0,10 + barHeight,0,0);
                 params.addRule(RelativeLayout.CENTER_HORIZONTAL);
                 myImage.setId(R.mipmap.yellow_ghost);
                 break;
-            case R.mipmap.ghost_arrow_red:
+            case 1:
                 params.setMargins(0, (layoutHeight - barHeight) / 2,0,0);
                 params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
                 myImage.setId(R.mipmap.red_ghost);
+                myImage.setRotation(90);
                 break;
-            case R.mipmap.ghost_arrow_green:
+            case 2:
                 params.setMargins(0, (layoutHeight - barHeight) / 2,0,0);
                 params.addRule(RelativeLayout.ALIGN_LEFT);
                 myImage.setId(R.mipmap.green_ghost);
+                myImage.setRotation(180);
                 break;
-            case R.mipmap.ghost_arrow_pink:
+            case 3:
                 params.addRule(RelativeLayout.CENTER_HORIZONTAL);
                 params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
                 myImage.setId(R.mipmap.pink_ghost);
+                myImage.setRotation(270);
                 break;
         }
 
@@ -416,26 +436,51 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     public void ghostLocationChange(LatLng ghostPos, int ghostId) {
         ImageView arrow = findViewById(ghostId);
 
-        LatLng centerOfCamera = mapboxMap.getCameraPosition().target;
+        if (arrow != null) {
+            LatLng centerOfCamera = mapboxMap.getCameraPosition().target;
+            double lat1 = centerOfCamera.getLatitude();
+            double lon1 = centerOfCamera.getLongitude();
+            double lat2 = ghostPos.getLatitude();
+            double lon2 = ghostPos.getLongitude();
 
-        double lat1 = centerOfCamera.getLatitude();
-        double lon1 = centerOfCamera.getLongitude();
-        double lat2 = ghostPos.getLatitude();
-        double lon2 = ghostPos.getLongitude();
+            double bearing = DistanceUtil.bearing(lat1, lon1, lat2, lon2);
 
-        double bearing = DistanceUtil.bearing(lat1, lon1, lat2, lon2);
+            double distance = DistanceUtil.distance(lat1, lon1, lat2, lon2);
 
-        double distance = DistanceUtil.distance(lat1, lon1, lat2, lon2);
+            double cameraBearing = mapboxMap.getCameraPosition().bearing;
 
-        double cameraBearing = mapboxMap.getCameraPosition().bearing;
+            float toRotation = (float) bearing  - (float) cameraBearing;
 
-        float finalBear = (float) bearing  + (float) cameraBearing;
-        arrow.setRotation(finalBear);
-        //arrow.getLayoutParams().height = (int) distance;
-        //arrow.getLayoutParams().width = (int) distance;
+            animateArrowRotation(arrow, toRotation);
 
-        arrow.requestLayout();
+            setArrowSize(arrow, distance);
+        }
+    }
 
+    private void animateArrowRotation(ImageView arrow, float toRotation) {
+        arrow.animate().rotation(toRotation);
+    }
+
+    /**
+     * Magic numbers.
+     */
+    private void setArrowSize(ImageView arrow, double distance) {
+        double size = 250;
+
+        size = size - (distance / 2.5);
+
+        if (size < 50) {
+            size = 50;
+        } else if (size > 175) {
+            size = 175;
+        }
+
+        size += 100;
+
+        size = size / 250;
+
+        arrow.animate().scaleX((float) size);
+        arrow.animate().scaleY((float) size);
     }
 
     @SuppressWarnings({"MissingPermission"})
@@ -612,7 +657,6 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     }
 
     public void showLeaderBoard() {
-        pd.show();
         gameStateHandler.setLeaderBoardOpen(true);
         final Dialog dialog = new Dialog(this);
         dialog.setOnShowListener(arg0 -> pd.dismiss());

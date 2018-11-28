@@ -104,8 +104,6 @@ public class GhostAnimationHandler {
                     markerAnimator.setDuration(3000);
                     markerAnimator.start();
 
-                    gameStateListener.ghostLocationChange(ghost.getPosition(), (int) ghostId);
-
                     //Loop the arrayList in the correct direction
                     if (direction.equals(LoopDirection.BACKWARD)) {
                         index--;
@@ -118,6 +116,8 @@ public class GhostAnimationHandler {
                     searchDist += 125;
                     searchCount += 15;
                 }
+
+                gameStateListener.ghostLocationChange(ghost.getPosition(), (int) ghostId);
 
                 if (checkIfGameOver(ghostPos)) {
                     gameStateListener.gameOver();
