@@ -94,7 +94,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     GameDataHandler gameDataHandler;
     GameStateHandler gameStateHandler;
 
-    private static final int EATING_FOV = 100;
+    private static final int EATING_FOV = 125;
     private static final int BONUS_TIME = 5;
     private static final int EATING_DISTANCE = 20;
     private static final int [] GHOSTS = new int [] {R.mipmap.green_ghost, R.mipmap.red_ghost,
@@ -125,6 +125,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
             self.mapboxMap = mapboxMap;
             hideMapboxAttributes();
             disableControls();
+            setLongPressListener();
             enableLocationComponent();
         });
     }
@@ -132,6 +133,23 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
     private void disableControls() {
         mapboxMap.getUiSettings().setZoomControlsEnabled(false);
         mapboxMap.getUiSettings().setZoomGesturesEnabled(false);
+    }
+
+    private void setLongPressListener() {
+        MapActivity self = this;
+        mapboxMap.setOnMapLongClickListener(new MapboxMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(@NonNull LatLng point) {
+                mapboxMap.setCameraPosition(
+                        new CameraPosition.Builder()
+                                .zoom(13)
+                                .build());
+
+                final Handler handler = new Handler();
+                handler.postDelayed(self::animateCameraToMyLocation, 1500);
+
+            }
+        });
     }
 
     private void setCustomToolbar() {
@@ -520,7 +538,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
         if (myLoc != null) {
             CameraPosition position = new CameraPosition.Builder()
                     .target(new LatLng(myLoc.getLatitude(), myLoc.getLongitude())) // Sets the new camera position
-                    .zoom(16.5) // Sets the zoom
+                    .zoom(16) // Sets the zoom
                     .tilt(30) // Set the camera tilt
                     .build(); // Creates a CameraPosition from the builder
 
@@ -750,7 +768,7 @@ public class MapActivity extends AppCompatActivity implements LocationEngineList
                     double distance = DistanceUtil.distance(location.getLatitude(), location.getLongitude(), markerPos.getLatitude(), markerPos.getLongitude());
 
                     float bearing = (float) DistanceUtil.bearing((float) location.getLatitude(), (float) location.getLongitude(), (float) markerPos.getLatitude(), (float) markerPos.getLongitude());
-                    bearing = bearing + location.getBearing();
+                    bearing = Math.abs(bearing - location.getBearing());
 
                     if (distance < EATING_DISTANCE && bearing < EATING_FOV) {
                         markers.remove(key);

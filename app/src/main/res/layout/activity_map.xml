@@ -15,7 +15,7 @@
         android:layout_marginStart="0dp"
         android:layout_marginTop="0dp"
         mapbox:mapbox_cameraTilt="30"
-        mapbox:mapbox_cameraZoom="16.5"
+        mapbox:mapbox_cameraZoom="16"
         mapbox:mapbox_styleUrl="mapbox://styles/salablefuzzball/cjo0cw51fa0m52rpepsm2teyw">
     </com.mapbox.mapboxsdk.maps.MapView>
 
